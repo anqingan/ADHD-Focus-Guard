@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Vigil.App/Vigil.App.csproj" />
+    <Project Path="src/Vigil.Core/Vigil.Core.csproj" />
+    <Project Path="src/Vigil.Infrastructure/Vigil.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Vigil.Tests/Vigil.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Vigil.Configure/Vigil.Configure.csproj" />
+  </Folder>
+</Solution>

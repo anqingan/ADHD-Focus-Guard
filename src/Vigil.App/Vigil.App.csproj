@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Vigil.Core\Vigil.Core.csproj" />
+    <ProjectReference Include="..\Vigil.Infrastructure\Vigil.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>ADHDFocusGuard</AssemblyName>
+    <ApplicationIcon>Assets\ADHDFocusGuard.ico</ApplicationIcon>
+    <Product>ADHD Focus Guard</Product>
+    <Description>ADHD-friendly AI focus assistant for Windows.</Description>
+  </PropertyGroup>
+
+</Project>

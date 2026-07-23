@@ -1,0 +1,30 @@
+bin/
+obj/
+.vs/
+TestResults/
+publish/
+artifacts/
+.idea/
+.vscode/
+*.user
+*.suo
+*.pdb
+*.userprefs
+*.DotSettings.user
+
+# Local secrets, settings and databases
+.env
+.env.*
+!.env.example
+settings.json
+api-key.bin
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Signing and packaging secrets
+*.pfx
+*.snk
+*.cer
+*.key
