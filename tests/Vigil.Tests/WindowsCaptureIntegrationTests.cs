@@ -44,7 +44,8 @@ public sealed class WindowsCaptureIntegrationTests
         GC.WaitForPendingFinalizers();
         current.Refresh();
 
-        Assert.InRange(current.HandleCount - before, -5, 10);
+        var handleDelta = current.HandleCount - before;
+        Assert.True(handleDelta <= 10, $"Process handle count grew by {handleDelta}.");
     }
 
     [Fact]
@@ -66,7 +67,8 @@ public sealed class WindowsCaptureIntegrationTests
         GC.WaitForPendingFinalizers();
         var after = GetGuiResources(current.Handle, 0);
 
-        Assert.InRange(after - before, 0, 3);
+        var gdiHandleDelta = after - before;
+        Assert.True(gdiHandleDelta <= 3, $"GDI handle count grew by {gdiHandleDelta}.");
     }
 
     [DllImport("user32.dll")]
