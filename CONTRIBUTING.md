@@ -24,4 +24,4 @@ dotnet test Vigil.Windows.slnx --configuration Debug
 
 请让每个提交只解决一个清晰问题，并在 Pull Request 中说明改动原因、用户影响、验证方法以及隐私或费用方面的变化。行为变更需要同步更新 README 或 `docs/产品功能与实现逻辑.md`。
 
-当前仓库尚未指定开源许可证。在维护者明确许可证和贡献协议之前，外部贡献可能暂不合并。
+提交贡献即表示你同意将改动按仓库的 [MIT License](LICENSE) 授权。请勿提交来源不明、许可证不兼容或从原 Vigil Swift 项目直接复制的代码。

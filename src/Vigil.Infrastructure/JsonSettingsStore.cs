@@ -37,7 +37,10 @@ public sealed class JsonSettingsStore : IAppSettingsStore
                 ? ""
                 : ProviderValidation.NormalizeModel(document.Model);
             var secret = await ReadSecretAsync(cancellationToken);
-            return new ProviderSettings(baseUrl, model, secret?.BaseUrl == baseUrl);
+            var textModel = string.IsNullOrWhiteSpace(document?.TextModel)
+                ? model
+                : ProviderValidation.NormalizeModel(document.TextModel);
+            return new ProviderSettings(baseUrl, model, secret?.BaseUrl == baseUrl) { TextModel = textModel };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -77,9 +80,26 @@ public sealed class JsonSettingsStore : IAppSettingsStore
             }
         }
 
-        var document = new SettingsDocument(normalizedBaseUrl, normalizedModel);
+        var existingDocument = await LoadSettingsDocumentAsync(cancellationToken);
+        var document = new SettingsDocument(normalizedBaseUrl, normalizedModel, existingDocument.TextModel);
         var settingsBytes = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
         await AtomicWriteAsync(_settingsFile, settingsBytes, cancellationToken);
+    }
+
+    public async Task SaveProviderModelsAsync(string baseUrl, string textModel, string visionModel, string apiKey, CancellationToken cancellationToken = default)
+    {
+        var normalizedBaseUrl = ProviderValidation.NormalizeBaseUrl(baseUrl);
+        var normalizedText = ProviderValidation.NormalizeModel(textModel);
+        var normalizedVision = ProviderValidation.NormalizeModel(visionModel);
+        if (apiKey.Length > 16_384) throw new ArgumentException("API Key 过长。", nameof(apiKey));
+        if (!string.IsNullOrWhiteSpace(apiKey)) await WriteSecretAsync(new SecretDocument(normalizedBaseUrl, apiKey.Trim()), cancellationToken);
+        else
+        {
+            var existing = await ReadSecretAsync(cancellationToken);
+            if (existing is null || existing.BaseUrl != normalizedBaseUrl) throw new ArgumentException("首次配置或更改 Base URL 时必须重新输入 API Key。", nameof(apiKey));
+        }
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new SettingsDocument(normalizedBaseUrl, normalizedVision, normalizedText), JsonOptions);
+        await AtomicWriteAsync(_settingsFile, bytes, cancellationToken);
     }
 
     public async Task<string?> GetApiKeyAsync(CancellationToken cancellationToken = default)
@@ -97,7 +117,7 @@ public sealed class JsonSettingsStore : IAppSettingsStore
     {
         if (!File.Exists(_settingsFile))
         {
-            return new SettingsDocument(ProviderSettings.Default.BaseUrl, "");
+            return new SettingsDocument(ProviderSettings.Default.BaseUrl, "", ProviderSettings.Default.TextModel);
         }
         await using var stream = File.OpenRead(_settingsFile);
         var document = await JsonSerializer.DeserializeAsync<SettingsDocument>(stream, cancellationToken: cancellationToken)
@@ -178,6 +198,6 @@ public sealed class JsonSettingsStore : IAppSettingsStore
         }
     }
 
-    private sealed record SettingsDocument(string BaseUrl, string Model);
+    private sealed record SettingsDocument(string BaseUrl, string Model, string? TextModel = null);
     private sealed record SecretDocument(string BaseUrl, string ApiKey);
 }

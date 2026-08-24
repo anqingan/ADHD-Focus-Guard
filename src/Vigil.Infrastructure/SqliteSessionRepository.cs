@@ -50,21 +50,14 @@ public sealed class SqliteSessionRepository : ISessionRepository
             CREATE INDEX IF NOT EXISTS ix_sessions_started_at ON sessions(started_at_utc DESC);
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await MigrateSensitiveTextAsync(connection, cancellationToken);
     }
 
     public async Task MarkRunningSessionsInterruptedAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            UPDATE sessions
-            SET completion_kind = 'Interrupted',
-                ended_at_utc = COALESCE(ended_at_utc, $now),
-                summary_text = CASE WHEN summary_text = '' THEN '应用意外退出，本轮会话未生成复盘。' ELSE summary_text END
-            WHERE completion_kind = 'Running';
-            """;
-        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        var rows = new List<(string Id, string Summary)>(); using (var select = connection.CreateCommand()) { select.CommandText = "SELECT id,summary_text FROM sessions WHERE completion_kind='Running';"; await using var reader = await select.ExecuteReaderAsync(cancellationToken); while (await reader.ReadAsync(cancellationToken)) rows.Add((reader.GetString(0), LocalTextProtector.Unprotect(reader.GetString(1)))); }
+        foreach (var row in rows) { using var update = connection.CreateCommand(); update.CommandText = "UPDATE sessions SET completion_kind='Interrupted',ended_at_utc=COALESCE(ended_at_utc,$now),summary_text=$summary WHERE id=$id;"; update.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O")); update.Parameters.AddWithValue("$summary", LocalTextProtector.Protect(string.IsNullOrWhiteSpace(row.Summary) ? "应用意外退出，本轮会话未生成复盘。" : row.Summary)); update.Parameters.AddWithValue("$id", row.Id); await update.ExecuteNonQueryAsync(cancellationToken); }
     }
 
     public async Task CreateAsync(SessionSummary session, CancellationToken cancellationToken = default)
@@ -91,7 +84,7 @@ public sealed class SqliteSessionRepository : ISessionRepository
             result.Add(new SessionSummary
             {
                 Id = Guid.Parse(reader.GetString(reader.GetOrdinal("id"))),
-                Goal = reader.GetString(reader.GetOrdinal("goal")),
+                Goal = LocalTextProtector.Unprotect(reader.GetString(reader.GetOrdinal("goal"))),
                 PlannedSeconds = reader.GetInt32(reader.GetOrdinal("planned_seconds")),
                 ActualSeconds = reader.GetInt32(reader.GetOrdinal("actual_seconds")),
                 StartedAtUtc = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("started_at_utc"))),
@@ -107,7 +100,7 @@ public sealed class SqliteSessionRepository : ISessionRepository
                 DistractedSeconds = reader.GetInt32(reader.GetOrdinal("distracted_seconds")),
                 AwaySeconds = reader.GetInt32(reader.GetOrdinal("away_seconds")),
                 UnknownSeconds = reader.GetInt32(reader.GetOrdinal("unknown_seconds")),
-                SummaryText = reader.GetString(reader.GetOrdinal("summary_text"))
+                SummaryText = LocalTextProtector.Unprotect(reader.GetString(reader.GetOrdinal("summary_text")))
             });
         }
         return result;
@@ -165,7 +158,7 @@ public sealed class SqliteSessionRepository : ISessionRepository
                 summary_text = excluded.summary_text;
             """;
         command.Parameters.AddWithValue("$id", session.Id.ToString());
-        command.Parameters.AddWithValue("$goal", session.Goal);
+        command.Parameters.AddWithValue("$goal", LocalTextProtector.Protect(session.Goal));
         command.Parameters.AddWithValue("$planned", session.PlannedSeconds);
         command.Parameters.AddWithValue("$actual", session.ActualSeconds);
         command.Parameters.AddWithValue("$started", session.StartedAtUtc.ToString("O"));
@@ -176,7 +169,13 @@ public sealed class SqliteSessionRepository : ISessionRepository
         command.Parameters.AddWithValue("$distracted", session.DistractedSeconds);
         command.Parameters.AddWithValue("$away", session.AwaySeconds);
         command.Parameters.AddWithValue("$unknown", session.UnknownSeconds);
-        command.Parameters.AddWithValue("$summary", session.SummaryText ?? "");
+        command.Parameters.AddWithValue("$summary", LocalTextProtector.Protect(session.SummaryText ?? ""));
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task MigrateSensitiveTextAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var rows = new List<(string Id, string Goal, string Summary)>(); using (var select = connection.CreateCommand()) { select.CommandText = "SELECT id,goal,summary_text FROM sessions;"; await using var reader = await select.ExecuteReaderAsync(cancellationToken); while (await reader.ReadAsync(cancellationToken)) { var goal = reader.GetString(1); var summary = reader.GetString(2); if (!LocalTextProtector.IsProtected(goal) || !LocalTextProtector.IsProtected(summary)) rows.Add((reader.GetString(0), goal, summary)); } }
+        foreach (var row in rows) { using var update = connection.CreateCommand(); update.CommandText = "UPDATE sessions SET goal=$goal,summary_text=$summary WHERE id=$id;"; update.Parameters.AddWithValue("$goal", LocalTextProtector.Protect(row.Goal)); update.Parameters.AddWithValue("$summary", LocalTextProtector.Protect(row.Summary)); update.Parameters.AddWithValue("$id", row.Id); await update.ExecuteNonQueryAsync(cancellationToken); }
     }
 }

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ADHD Focus Guard</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/workspace.css">
+  <link rel="stylesheet" href="/responsive.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">A</div><div><strong>ADHD</strong><span>Focus Guard</span></div></div>
+      <nav aria-label="主导航">
+        <button class="nav-item active" data-view="overview"><span>⌂</span>总览</button>
+        <button class="nav-item" data-view="goals"><span>◎</span>目标</button>
+        <button class="nav-item" data-view="actions"><span>✓</span>事务</button>
+        <button class="nav-item" data-view="memories"><span>◇</span>记忆</button>
+        <button class="nav-item" data-view="reports"><span>▤</span>报告</button>
+        <button class="nav-item" data-view="focus"><span>◉</span>专注</button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="nav-item" data-view="settings"><span>⚙</span>设置</button>
+        <div class="privacy-note"><i></i><span>数据保存在本机</span></div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div><p class="eyebrow" id="dateEyebrow">今天</p><h1 id="pageTitle">你的注意力，一目了然</h1></div>
+        <div class="top-actions">
+          <div class="status-chip"><i></i><span id="trackerStatus">正在连接 ActivityWatch</span></div>
+          <button class="avatar" aria-label="本地个人空间">你</button>
+        </div>
+      </header>
+
+      <section id="overviewView" class="view active">
+        <div class="range-row">
+          <div class="segmented" role="group" aria-label="统计范围">
+            <button data-days="1">今天</button><button data-days="3">3 天</button><button data-days="7" class="active">7 天</button><button data-days="14">14 天</button><button data-days="30">30 天</button>
+          </div>
+          <p id="rangeLabel">最近 7 个活动日 · 每天 08:00 开始</p>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric-card hero-metric"><p>学习与工作</p><strong id="workTotal">—</strong><span id="workRatio">等待活动数据</span><div class="metric-orb blue"></div></article>
+          <article class="metric-card"><p>娱乐</p><strong id="entertainmentTotal">—</strong><span>所选范围内</span><div class="metric-orb coral"></div></article>
+          <article class="metric-card"><p>每日平均记录</p><strong id="averageTotal">—</strong><span>仅计算有证据的时间</span><div class="metric-orb violet"></div></article>
+          <article class="metric-card"><p>进行中的目标</p><strong id="goalCount">—</strong><span id="goalMeta">保持方向清晰</span><div class="metric-orb mint"></div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel span-8">
+            <div class="panel-head"><div><p class="panel-kicker">趋势</p><h2>每天的时间花在哪里</h2></div><div class="legend"><span><i class="work"></i>学习与工作</span><span><i class="fun"></i>娱乐</span><span><i class="other"></i>其它</span></div></div>
+            <div id="dailyBars" class="daily-chart" aria-label="每日分类时间柱状图"></div>
+          </article>
+          <article class="panel span-4 focus-panel">
+            <div class="panel-head"><div><p class="panel-kicker">构成</p><h2>时间占比</h2></div></div>
+            <div class="donut-wrap"><canvas id="categoryDonut" width="240" height="240" aria-label="活动类别环形图"></canvas><div class="donut-center"><strong id="donutPercent">0%</strong><span>学习与工作</span></div></div>
+            <div id="categoryList" class="category-list"></div>
+          </article>
+          <article class="panel span-7">
+            <div class="panel-head"><div><p class="panel-kicker">节律</p><h2>一天中的活跃时段</h2></div><span class="soft-label">按小时平均</span></div>
+            <div class="canvas-wrap"><canvas id="hourlyChart" width="760" height="250" aria-label="每小时活跃趋势折线图"></canvas></div>
+          </article>
+          <article class="panel span-5">
+            <div class="panel-head"><div><p class="panel-kicker">聚焦</p><h2>投入最多的活动</h2></div></div>
+            <div id="topActivities" class="activity-ranking"></div>
+          </article>
+          <article class="panel span-7">
+            <div class="panel-head"><div><p class="panel-kicker">最近</p><h2>活动时间线</h2></div><button class="text-button" id="refreshButton">刷新</button></div>
+            <div id="timeline" class="timeline"></div>
+          </article>
+          <article class="panel span-5">
+            <div class="panel-head"><div><p class="panel-kicker">方向</p><h2>当前目标</h2></div><button class="text-button" data-view-link="goals">管理</button></div>
+            <div id="activeGoals" class="goal-stack"></div>
+            <div class="budget-card"><div><span>今日 AI 预算</span><strong id="budgetText">¥0.00 / ¥1.00</strong></div><div class="budget-track"><i id="budgetFill"></i></div></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="genericView" class="view">
+        <span id="genericTitle" hidden></span><span id="genericDescription" hidden></span>
+        <div id="workspaceContent"></div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+  <script src="/workspace.js" defer></script>
+</body>
+</html>

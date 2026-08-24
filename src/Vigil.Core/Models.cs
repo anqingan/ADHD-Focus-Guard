@@ -18,7 +18,6 @@ public enum SessionPhase
 {
     Idle,
     Running,
-    Resting,
     Summarizing,
     Completed,
     FailedToStart,
@@ -39,16 +38,17 @@ public enum ReminderKind
     Tray,
     Sound,
     FullScreenOverlay,
-    HideSoftReminder,
-    BreakCompleted
+    HideSoftReminder
 }
 
 public sealed record ProviderSettings(string BaseUrl, string Model, bool HasApiKey)
 {
+    public string TextModel { get; init; } = "deepseek-v4-flash";
     public static ProviderSettings Default { get; } = new(
-        "https://api.moonshot.cn/v1",
-        "kimi-k2.6",
-        false);
+        "https://api.deepseek.com",
+        "deepseek-v4-flash-vision-exp",
+        false)
+    { TextModel = "deepseek-v4-flash" };
 }
 
 public sealed record ActivityContext(string ProcessName, string WindowTitle);

@@ -12,12 +12,19 @@ public partial class App : System.Windows.Application
     private MainWindow? _mainWindow;
     private HttpClient? _httpClient;
     private WindowsReminderService? _reminders;
+    private ActivityTrackingService? _tracker;
+    private AutomaticVisualMonitor? _visualMonitor;
+    private ActivityBatchClassificationService? _batchClassifier;
+    private ReportGenerationService? _reportGenerator;
+    private AiBudgetTracker? _budget;
+    private LocalWebServer? _webServer;
     private System.Drawing.Icon? _applicationIcon;
 
     public FocusSessionCoordinator Coordinator { get; private set; } = null!;
     public ISessionRepository Repository { get; private set; } = null!;
     public IAppSettingsStore Settings { get; private set; } = null!;
     public IFocusAiClient AiClient { get; private set; } = null!;
+    public IPersonalDataRepository PersonalRepository { get; private set; } = null!;
     public bool IsExiting { get; private set; }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -30,6 +37,8 @@ public partial class App : System.Windows.Application
             Repository = new SqliteSessionRepository();
             await Repository.InitializeAsync();
             await Repository.MarkRunningSessionsInterruptedAsync();
+            PersonalRepository = new SqlitePersonalDataRepository();
+            await PersonalRepository.InitializeAsync();
 
             var handler = new SocketsHttpHandler
             {
@@ -39,9 +48,19 @@ public partial class App : System.Windows.Application
                 PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2)
             };
             _httpClient = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-            AiClient = new OpenAiCompatibleClient(_httpClient, Settings);
+            _budget = new AiBudgetTracker();
+            _budget.BudgetReached += Budget_BudgetReached;
+            AiClient = new OpenAiCompatibleClient(_httpClient, Settings, _budget);
+            var personalAi = new DeepSeekPersonalAiService(_httpClient, Settings, _budget);
+            _batchClassifier = new ActivityBatchClassificationService(PersonalRepository, personalAi, _budget);
+            _reportGenerator = new ReportGenerationService(PersonalRepository, personalAi, _budget);
+            _tracker = new ActivityTrackingService(new ActivityWatchClient(_httpClient), PersonalRepository);
             _trayIcon = CreateTrayIcon();
-            _reminders = new WindowsReminderService(_trayIcon, () => Coordinator.MuteCurrentDistraction());
+            _reminders = new WindowsReminderService(_trayIcon, () =>
+            {
+                Coordinator.MuteCurrentDistraction();
+                _visualMonitor?.MuteCurrentDistraction();
+            });
             Coordinator = new FocusSessionCoordinator(
                 AiClient,
                 new GdiScreenCaptureService(),
@@ -49,10 +68,38 @@ public partial class App : System.Windows.Application
                 new WindowsIdleService(),
                 Repository,
                 _reminders);
+            _visualMonitor = new AutomaticVisualMonitor(
+                AiClient,
+                new GdiScreenCaptureService(),
+                new WindowsActivityContextService(),
+                new WindowsIdleService(),
+                PersonalRepository,
+                _reminders,
+                () => Coordinator.Phase == SessionPhase.Running,
+                _budget);
 
-            _mainWindow = new MainWindow(Coordinator, Repository, Settings, AiClient);
+            _mainWindow = new MainWindow(Coordinator, Repository, Settings, AiClient, PersonalRepository, _tracker, personalAi, _visualMonitor);
             MainWindow = _mainWindow;
             _mainWindow.Show();
+            _mainWindow.Hide();
+            _tracker.GentleReminder += Tracker_GentleReminder;
+            _tracker.ActiveModeChanged += Tracker_ActiveModeChanged;
+            _tracker.Start();
+            _visualMonitor.Start();
+            _batchClassifier.Start();
+            _reportGenerator.Start();
+            _webServer = new LocalWebServer(
+                PersonalRepository,
+                Repository,
+                Settings,
+                AiClient,
+                personalAi,
+                _budget,
+                _tracker,
+                _visualMonitor,
+                Coordinator);
+            await _webServer.StartAsync();
+            _webServer.OpenInBrowser();
         }
         catch (Exception ex)
         {
@@ -64,10 +111,12 @@ public partial class App : System.Windows.Application
 
     public void ShowMainWindow()
     {
-        if (_mainWindow is null)
+        if (_webServer is not null)
         {
+            _webServer.OpenInBrowser();
             return;
         }
+        if (_mainWindow is null) return;
         _mainWindow.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Activate();
@@ -80,11 +129,6 @@ public partial class App : System.Windows.Application
         {
             await Coordinator.StopAsync();
         }
-        else if (Coordinator.Phase == SessionPhase.Resting)
-        {
-            await Coordinator.StopBreakAsync();
-            ShowMainWindow();
-        }
     }
 
     public async Task ExitAsync()
@@ -94,15 +138,15 @@ public partial class App : System.Windows.Application
             return;
         }
         IsExiting = true;
+        if (_webServer is not null)
+        {
+            try { await _webServer.DisposeAsync(); } catch { }
+        }
         try
         {
             if (Coordinator.Phase == SessionPhase.Running)
             {
                 await Coordinator.StopAsync();
-            }
-            else if (Coordinator.Phase == SessionPhase.Resting)
-            {
-                await Coordinator.StopBreakAsync();
             }
         }
         catch
@@ -115,11 +159,30 @@ public partial class App : System.Windows.Application
         catch
         {
         }
+        if (_tracker is not null)
+        {
+            _tracker.GentleReminder -= Tracker_GentleReminder;
+            _tracker.ActiveModeChanged -= Tracker_ActiveModeChanged;
+            try { await _tracker.DisposeAsync(); } catch { }
+        }
+        if (_visualMonitor is not null)
+        {
+            try { await _visualMonitor.DisposeAsync(); } catch { }
+        }
+        if (_batchClassifier is not null)
+        {
+            try { await _batchClassifier.DisposeAsync(); } catch { }
+        }
+        if (_reportGenerator is not null)
+        {
+            try { await _reportGenerator.DisposeAsync(); } catch { }
+        }
         _reminders?.Dispose();
         _trayIcon?.ContextMenuStrip?.Dispose();
         _trayIcon?.Dispose();
         _applicationIcon?.Dispose();
         _httpClient?.Dispose();
+        if (_budget is not null) _budget.BudgetReached -= Budget_BudgetReached;
         Shutdown();
     }
 
@@ -137,12 +200,41 @@ public partial class App : System.Windows.Application
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("显示 ADHD 专注守护", null, (_, _) => Dispatcher.Invoke(ShowMainWindow));
-        menu.Items.Add("结束当前专注/休息", null, async (_, _) =>
+        menu.Items.Add("结束当前专注", null, async (_, _) =>
             await Dispatcher.InvokeAsync(StopCurrentAsync).Task.Unwrap());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, async (_, _) =>
             await Dispatcher.InvokeAsync(ExitAsync).Task.Unwrap());
         icon.ContextMenuStrip = menu;
         return icon;
+    }
+
+    private void Tracker_GentleReminder(object? sender, string message)
+    {
+        if (_trayIcon is null) return;
+        Dispatcher.Invoke(() =>
+        {
+            _trayIcon.BalloonTipTitle = "Vigil · 回到目标";
+            _trayIcon.BalloonTipText = message;
+            _trayIcon.ShowBalloonTip(8_000);
+            System.Media.SystemSounds.Asterisk.Play();
+        });
+    }
+
+    private void Tracker_ActiveModeChanged(object? sender, bool active) => _visualMonitor?.SetActive(active);
+
+    private void Budget_BudgetReached(object? sender, AiBudgetSnapshot snapshot)
+    {
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            var result = MessageBox.Show(
+                $"今天的 AI 估算费用已达到 {snapshot.EstimatedCny:0.00} 元。\n\n选择“是”表示今天继续自动视觉识别和分类；选择“否”表示暂停自动 AI，本地记录不会停止。",
+                "Vigil · 每日 AI 预算",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (_budget is null) return;
+            if (result == MessageBoxResult.Yes) await _budget.ContinueTodayAsync();
+            else await _budget.PauseTodayAsync();
+        });
     }
 }

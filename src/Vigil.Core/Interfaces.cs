@@ -50,5 +50,6 @@ public interface IAppSettingsStore
 {
     Task<ProviderSettings> LoadProviderAsync(CancellationToken cancellationToken = default);
     Task SaveProviderAsync(string baseUrl, string model, string apiKey, CancellationToken cancellationToken = default);
+    Task SaveProviderModelsAsync(string baseUrl, string textModel, string visionModel, string apiKey, CancellationToken cancellationToken = default);
     Task<string?> GetApiKeyAsync(CancellationToken cancellationToken = default);
 }

@@ -144,54 +144,6 @@ public sealed class FocusSessionCoordinatorTests
         await coordinator.DisposeAsync();
     }
 
-    [Fact]
-    public async Task BreakTimer_CompletesAndRecallsWithoutScreenObservation()
-    {
-        var ai = new SlowAi(TimeSpan.FromMilliseconds(2), true);
-        var reminders = new MemoryReminder();
-        var coordinator = CreateCoordinator(ai, new MemoryRepository(), reminders, new FocusEngineOptions
-        {
-            TickInterval = TimeSpan.FromMilliseconds(5),
-            ObservationInterval = TimeSpan.FromMilliseconds(10),
-            AiTimeout = TimeSpan.FromSeconds(1)
-        });
-        await coordinator.StartAsync("完成后休息", 1);
-        await coordinator.StopAsync();
-        var callsBeforeBreak = ai.AnalyzeCalls;
-        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        coordinator.BreakCompleted += (_, _) => completed.TrySetResult();
-
-        await coordinator.StartBreakAsync(TimeSpan.FromMilliseconds(40));
-        Assert.Equal(SessionPhase.Resting, coordinator.Phase);
-        Assert.Contains("不会观察屏幕", coordinator.Snapshot.Activity);
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-        Assert.Equal(SessionPhase.Idle, coordinator.Phase);
-        Assert.Equal(callsBeforeBreak, ai.AnalyzeCalls);
-        Assert.Contains(reminders.Items, item => item.Kind == ReminderKind.BreakCompleted);
-        await coordinator.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task BreakTimer_CanBeEndedEarlyWithoutCompletionReminder()
-    {
-        var reminders = new MemoryReminder();
-        var coordinator = CreateCoordinator(
-            new SlowAi(TimeSpan.FromMilliseconds(2), true),
-            new MemoryRepository(), reminders,
-            new FocusEngineOptions { TickInterval = TimeSpan.FromMilliseconds(5) });
-        await coordinator.StartAsync("提前结束休息", 1);
-        await coordinator.StopAsync();
-
-        await coordinator.StartBreakAsync(TimeSpan.FromSeconds(1));
-        await coordinator.StopBreakAsync();
-        await Task.Delay(30);
-
-        Assert.Equal(SessionPhase.Idle, coordinator.Phase);
-        Assert.DoesNotContain(reminders.Items, item => item.Kind == ReminderKind.BreakCompleted);
-        await coordinator.DisposeAsync();
-    }
-
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

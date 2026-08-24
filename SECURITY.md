@@ -8,6 +8,6 @@
 
 ## 当前安全边界
 
-API Key 使用 Windows DPAPI CurrentUser 加密，并与 Base URL 绑定。截图只在内存中处理并发送给用户配置的云端模型，不写入磁盘。目标、统计和最终复盘保存在当前用户的 `%LocalAppData%\Vigil\Vigil.db`，目前没有数据库级加密。
+API Key 使用 Windows DPAPI CurrentUser 加密，并与 Base URL 绑定。截图只在内存中处理并发送给用户配置的云端模型，不写入磁盘。目标、事务、记忆和报告等敏感文本字段使用当前 Windows 用户的 DPAPI 保护后写入 `%LocalAppData%\Vigil\Vigil.db`；数据库结构、时间和数值统计并非整体加密。
 
 本项目仍处于早期开发阶段，尚未提供安装签名、自动更新、安全响应时限或长期支持承诺。

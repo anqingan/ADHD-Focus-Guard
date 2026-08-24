@@ -12,12 +12,14 @@ public sealed class OpenAiCompatibleClient : IFocusAiClient
     private const int MaxFrameBytes = 8 * 1_048_576;
     private readonly HttpClient _httpClient;
     private readonly IAppSettingsStore _settings;
+    private readonly IAiBudgetTracker? _budget;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public OpenAiCompatibleClient(HttpClient httpClient, IAppSettingsStore settings)
+    public OpenAiCompatibleClient(HttpClient httpClient, IAppSettingsStore settings, IAiBudgetTracker? budget = null)
     {
         _httpClient = httpClient;
         _settings = settings;
+        _budget = budget;
     }
 
     public async Task<string> TestAsync(CancellationToken cancellationToken)
@@ -172,6 +174,11 @@ public sealed class OpenAiCompatibleClient : IFocusAiClient
             body["thinking"] = new { type = "disabled" };
             body["max_completion_tokens"] = maxCompletionTokens;
         }
+        else if (model.StartsWith("deepseek-", StringComparison.OrdinalIgnoreCase))
+        {
+            body["thinking"] = new { type = "disabled" };
+            body["max_tokens"] = maxCompletionTokens;
+        }
         else
         {
             body["max_tokens"] = maxCompletionTokens;
@@ -205,6 +212,10 @@ public sealed class OpenAiCompatibleClient : IFocusAiClient
             throw new InvalidDataException("云端响应超过 1 MiB 限制。", ex);
         }
         var content = wire?.Choices?.FirstOrDefault()?.Message?.Content;
+        if (_budget is not null && wire?.Usage is { } usage)
+        {
+            await _budget.RecordUsageAsync(model, usage.PromptTokens, Math.Max(usage.PromptCacheHitTokens, usage.CachedTokens), usage.CompletionTokens, cancellationToken);
+        }
         if (string.IsNullOrWhiteSpace(content) || content.Length > 100_000)
         {
             throw new InvalidDataException("云端服务返回了空 choices/content。");
@@ -259,9 +270,10 @@ public sealed class OpenAiCompatibleClient : IFocusAiClient
     }
 
     private sealed record FrameWire(string? Level, string? Activity, string? Reminder);
-    private sealed record ChatResponse(List<Choice>? Choices);
+    private sealed record ChatResponse(List<Choice>? Choices, UsageWire? Usage);
     private sealed record Choice(Message? Message);
     private sealed record Message(string? Content);
+    private sealed record UsageWire(int PromptTokens, int CompletionTokens, int PromptCacheHitTokens, int CachedTokens);
 
     private static string Limit(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];

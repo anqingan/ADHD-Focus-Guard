@@ -1,0 +1,37 @@
+name: Bug 报告
+description: 报告可复现的异常行为
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传 API Key、真实截图、数据库、完整日志或其他个人信息。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？你期望发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 打开……\n2. 点击……\n3. 出现……"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      placeholder: v0.x.x 或 commit SHA
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本
+      placeholder: Windows 11 24H2
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 请只提供已脱敏的信息。

@@ -24,17 +24,21 @@ public partial class MainWindow : Window
         FocusSessionCoordinator coordinator,
         ISessionRepository repository,
         IAppSettingsStore settings,
-        IFocusAiClient ai)
+        IFocusAiClient ai,
+        IPersonalDataRepository personal,
+        ActivityTrackingService tracker,
+        IPersonalAiService personalAi,
+        AutomaticVisualMonitor visualMonitor)
     {
         _coordinator = coordinator;
         _repository = repository;
         _settings = settings;
         _ai = ai;
         InitializeComponent();
+        InitializeV2(personal, tracker, personalAi, visualMonitor);
         HistoryList.ItemsSource = _history;
         _coordinator.SnapshotChanged += Coordinator_SnapshotChanged;
         _coordinator.SessionCompleted += Coordinator_SessionCompleted;
-        _coordinator.BreakCompleted += Coordinator_BreakCompleted;
         Loaded += MainWindow_Loaded;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
@@ -50,18 +54,21 @@ public partial class MainWindow : Window
     {
         var provider = await _settings.LoadProviderAsync();
         BaseUrlInput.Text = provider.BaseUrl;
+        TextModelInput.Text = provider.TextModel;
         ModelInput.Text = provider.Model;
         if (_captureProtectionAvailable)
         {
             SettingsStatusText.Text = provider.HasApiKey ? "已保存加密 API Key。" : "尚未保存 API Key。";
         }
         await ReloadHistoryAsync();
+        await LoadV2Async();
         UpdateSnapshot(_coordinator.Snapshot);
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
         _captureProtectionAvailable = WindowCaptureProtection.Exclude(new WindowInteropHelper(this).Handle);
+        _visualMonitor.SetCaptureAllowed(_captureProtectionAvailable);
         if (!_captureProtectionAvailable)
         {
             SettingsStatusText.Text = "Windows 无法将 Vigil 窗口排除出截图，已禁用会话启动。";
@@ -84,7 +91,7 @@ public partial class MainWindow : Window
             _hotKey?.Dispose();
             _coordinator.SnapshotChanged -= Coordinator_SnapshotChanged;
             _coordinator.SessionCompleted -= Coordinator_SessionCompleted;
-            _coordinator.BreakCompleted -= Coordinator_BreakCompleted;
+            DisposeV2Events();
             return;
         }
         e.Cancel = true;
@@ -122,14 +129,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (_coordinator.Phase == SessionPhase.Resting)
-            {
-                await _coordinator.StopBreakAsync();
-            }
-            else
-            {
-                await _coordinator.StopAsync();
-            }
+            await _coordinator.StopAsync();
         }
         catch (Exception ex)
         {
@@ -143,24 +143,6 @@ public partial class MainWindow : Window
     {
         _coordinator.ResetToIdle();
         FocusGoalInput();
-    }
-
-    private async void Break_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is not System.Windows.Controls.Button { Tag: string value }
-                || !int.TryParse(value, out var minutes))
-            {
-                throw new InvalidOperationException("无效的休息时长。");
-            }
-            await _coordinator.StartBreakAsync(TimeSpan.FromMinutes(minutes));
-            Hide();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "无法开始休息", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
@@ -197,8 +179,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private Task SaveSettingsAsync() => _settings.SaveProviderAsync(
+    private Task SaveSettingsAsync() => _settings.SaveProviderModelsAsync(
         BaseUrlInput.Text,
+        TextModelInput.Text,
         ModelInput.Text,
         ApiKeyInput.Password);
 
@@ -233,47 +216,29 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Coordinator_BreakCompleted(object? sender, EventArgs e)
-    {
-        if (Dispatcher.HasShutdownStarted)
-        {
-            return;
-        }
-        _ = Dispatcher.InvokeAsync(() =>
-        {
-            Show();
-            WindowState = WindowState.Normal;
-            Activate();
-            FocusGoalInput();
-        });
-    }
-
     private void UpdateSnapshot(SessionSnapshot snapshot)
     {
         StartCard.Visibility = snapshot.Phase is SessionPhase.Idle or SessionPhase.FailedToStart
             ? Visibility.Visible
             : Visibility.Collapsed;
-        RunningCard.Visibility = snapshot.Phase is SessionPhase.Running or SessionPhase.Resting or SessionPhase.Summarizing
+        RunningCard.Visibility = snapshot.Phase is SessionPhase.Running or SessionPhase.Summarizing
             ? Visibility.Visible
             : Visibility.Collapsed;
         CompletedCard.Visibility = snapshot.Phase == SessionPhase.Completed
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        if (snapshot.Phase is SessionPhase.Running or SessionPhase.Resting or SessionPhase.Summarizing)
+        if (snapshot.Phase is SessionPhase.Running or SessionPhase.Summarizing)
         {
             RunningGoalText.Text = snapshot.Goal;
             RemainingText.Text = FormatDuration(snapshot.RemainingSeconds);
             CurrentStateText.Text = snapshot.Phase switch
             {
                 SessionPhase.Summarizing => "正在生成复盘…",
-                SessionPhase.Resting => "休息中 · 不会观察屏幕",
                 _ => LevelName(snapshot.Level, snapshot.Availability)
             };
-            ObservationPanel.Visibility = snapshot.Phase == SessionPhase.Resting
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            StopButton.Content = snapshot.Phase == SessionPhase.Resting ? "提前结束休息" : "结束本轮";
+            ObservationPanel.Visibility = Visibility.Visible;
+            StopButton.Content = "结束本轮";
             ActivityText.Text = string.IsNullOrWhiteSpace(snapshot.Activity) ? "等待下一次有效判断…" : snapshot.Activity;
             ConnectionText.Text = snapshot.ConnectionMessage;
         }

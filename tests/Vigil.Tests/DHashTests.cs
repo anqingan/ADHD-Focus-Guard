@@ -25,8 +25,8 @@ public sealed class DHashTests
     {
         var pixels = new byte[17 * 16];
         for (var row = 0; row < 16; row++)
-        for (var col = 0; col < 17; col++)
-            pixels[row * 17 + col] = (byte)(255 - col);
+            for (var col = 0; col < 17; col++)
+                pixels[row * 17 + col] = (byte)(255 - col);
 
         var hash = DHash.FromGrayscale17x16(pixels);
 

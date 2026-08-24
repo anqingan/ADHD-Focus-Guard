@@ -1,0 +1,24 @@
+name: 功能建议
+description: 提议一个符合个人专注与隐私边界的改进
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题
+      description: 请先描述使用场景和现有痛点。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 你希望产品如何表现？
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: 隐私、费用与打扰程度
+      description: 这项功能是否需要更多截图、活动数据、AI 请求或提醒？

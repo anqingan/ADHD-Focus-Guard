@@ -1,135 +1,97 @@
 <div align="center">
-  <img src="assets/adhd-focus-guard-logo.svg" width="112" alt="ADHD Focus Guard logo" />
+  <img src="assets/adhd-focus-guard-logo.svg" width="104" alt="ADHD Focus Guard logo">
   <h1>ADHD Focus Guard</h1>
-  <p>一个面向 ADHD 友好体验、隐私优先、渐进提醒的 Windows AI 专注助手。</p>
+  <p><strong>把零散的电脑活动，变成可理解、可复盘、可行动的个人注意力系统。</strong></p>
+  <p>ActivityWatch 本地记录 · 按需视觉理解 · 目标与记忆 · 日/周/月复盘</p>
 
-  [![Windows](https://img.shields.io/badge/Windows-11-0078D4?logo=windows11&logoColor=white)](https://www.microsoft.com/windows/windows-11)
-  [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-  [![CI](https://github.com/anqingan/ADHD-Focus-Guard/actions/workflows/ci.yml/badge.svg)](https://github.com/anqingan/ADHD-Focus-Guard/actions/workflows/ci.yml)
-  [![Tests](https://img.shields.io/badge/tests-35%20passing-2ea44f)](#质量与测试)
+  <p>
+    <a href="https://github.com/anqingan/ADHD-Focus-Guard/actions/workflows/ci.yml"><img src="https://github.com/anqingan/ADHD-Focus-Guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/anqingan/ADHD-Focus-Guard?color=3478f6" alt="MIT License"></a>
+    <img src="https://img.shields.io/badge/Windows-11-3478f6?logo=windows11&logoColor=white" alt="Windows 11">
+    <img src="https://img.shields.io/badge/.NET-10-512bd4?logo=dotnet&logoColor=white" alt=".NET 10">
+    <img src="https://img.shields.io/badge/privacy-local--first-20a66a" alt="Local-first privacy">
+  </p>
+
+  <p>
+    <a href="#快速开始">快速开始</a> ·
+    <a href="docs/使用指南.md">使用指南</a> ·
+    <a href="docs/产品功能与实现逻辑.md">实现逻辑</a> ·
+    <a href="CONTRIBUTING.md">参与贡献</a>
+  </p>
 </div>
 
-> [!IMPORTANT]
-> ADHD Focus Guard 会把压缩后的主屏幕截图发送给你配置的视觉模型服务，但不会把截图写入磁盘。使用前请确认你接受对应服务商的隐私政策。
+![ADHD Focus Guard 总览界面](assets/dashboard-preview.png)
 
-> [!NOTE]
-> 本项目是自我管理辅助工具，不提供 ADHD 诊断、治疗或医疗建议，也不替代专业医疗服务。
+> 上图使用演示数据，仅用于展示界面。ADHD Focus Guard 是个人自我管理工具，不是医疗产品，也不是员工监控软件。
 
-## 它解决什么问题
+## 为什么做这个项目
 
-普通番茄钟知道时间过去了多久，却不知道你是否仍在做最初的事情。ADHD Focus Guard 让用户先写下本轮目标，再以较低频率观察屏幕，由视觉模型判断当前活动是专注、轻微走神还是明确分心，并按照偏离程度渐进提醒。
+传统时间记录告诉你“打开了什么”，普通番茄钟告诉你“过去了多久”，但它们很难回答更重要的问题：这段时间是否真的在推进目标？今天的安排是否合理？最近一周的注意力被什么占据？
 
-它不是员工监控、屏幕录像或行为审计工具。截图只在内存中短暂存在；长期保存的只有目标、时长分布、完成状态和最终复盘。
+ADHD Focus Guard 将这些问题连成一条完整链路。ActivityWatch 提供低成本、持续的本地活动证据；视觉模型只在需要理解屏幕语义时按需调用；目标、事务和记忆帮助 AI 理解个人背景；日报、周报和月报最终把记录转成客观复盘。系统默认保持安静，只在偏离足够明确、持续足够久时提醒。
 
 ## 核心能力
 
-| 能力 | 当前实现 |
+| 能力 | 现在能做什么 |
 | --- | --- |
-| 目标与计时 | 15/25/45/60 分钟预设，自定义 1–300 分钟 |
-| 智能判断 | 兼容 Chat Completions 的视觉模型，默认 Kimi K2.6 |
-| 渐进纠偏 | 专注不打扰、走神延迟提醒、明确分心逐步升级 |
-| 离开检测 | 本机检测键鼠空闲，离开期间停止调用模型 |
-| 结束复盘 | 云端生成 4–6 句中文总结，失败时使用本地模板 |
-| 休息计时 | 专注结束后可选择 5、10、15 分钟休息 |
-| Windows 集成 | 系统托盘、全局快捷键、声音、胶囊和全屏遮罩 |
-| 历史记录 | SQLite 保存会话摘要，支持单条删除和全部清空 |
+| 自动活动记录 | 从本机 ActivityWatch 读取应用、窗口、浏览器域名和 AFK 状态，归入“学习与工作、娱乐、其它”三类 |
+| 按需视觉理解 | 工作状态下定期观察主显示器，由多模态模型判断 `focused`、`wandering` 或 `distracted` |
+| 渐进式纠偏 | 专注不打扰；轻微走神延迟轻提醒；明确分心先轻提醒，再按持续时间升级 |
+| 目标系统 | 管理长期方向、阶段、本周和今日目标；完成、暂停或放弃后仍保留完整历史 |
+| AI 今日计划 | 将自然语言安排拆成可验证的今日目标，补充优先级、预计时间和完成标准，确认后才保存 |
+| 事务与记忆 | 随手写下事务，由 AI 整理并预览；手动或 AI 生成记忆，AI 内容必须经用户确认 |
+| 客观复盘 | 生成日报、周报和月报，展示时间构成、活动节律、目标进展和基于证据的建议 |
+| 手动专注 | 保留 1–300 分钟的目标倒计时、专注状态统计和会话总结 |
+| 本地工作台 | WPF 负责系统能力，日常界面在浏览器打开；数据可 ZIP 导出、恢复或清空 |
 
-## 工作方式
+## 它如何工作
 
 ```mermaid
 flowchart LR
-    Goal["设定目标与时长"] --> Timer["开始倒计时"]
-    Timer --> Idle{"空闲 ≥ 60 秒？"}
-    Idle -- 是 --> Away["Away<br/>停止 AI 调用"]
-    Idle -- 否 --> Capture["内存截屏<br/>1280px / JPEG 65"]
-    Capture --> Gate{"需要分析？"}
-    Gate -- 否 --> Reuse["沿用最近判断"]
-    Gate -- 是 --> AI["视觉模型判断"]
-    AI --> Focused["Focused<br/>保持安静"]
-    AI --> Wandering["Wandering<br/>120 秒后轻提醒"]
-    AI --> Distracted["Distracted<br/>立即轻提醒，持续后升级"]
-    Away --> Idle
-    Reuse --> Timer
-    Focused --> Timer
-    Wandering --> Timer
-    Distracted --> Timer
-    Timer --> Summary["结束并生成复盘"]
-    Summary --> Break["可选 5/10/15 分钟休息"]
+    AW["ActivityWatch\n应用、标题、AFK"] --> Tracker["本地活动分类\n学习与工作 / 娱乐 / 其它"]
+    Goals["目标、事务、记忆"] --> Context["个人上下文"]
+    Tracker --> Trigger{"需要理解语义？"}
+    Trigger -- 否 --> Store["本机 SQLite"]
+    Trigger -- 是 --> Vision["按需屏幕截图\n内存压缩 + dHash 去重"]
+    Context --> Vision
+    Vision --> AI["兼容 Chat Completions\n文本与视觉模型"]
+    AI --> Policy["渐进式提醒策略"]
+    AI --> Store
+    Store --> Reports["总览 · 日报 · 周报 · 月报"]
 ```
 
-应用每 5 秒运行一次本地观察调度，但不会每 5 秒请求一次 AI。满足下列任一条件时才发送截图：
+后台每 5 秒读取一次当前活动，但并不意味着每 5 秒调用一次 AI。自动视觉仅在系统已经识别出持续的“学习与工作”状态、用户没有 AFK、Windows 截屏排除可用且预算未暂停时启用。首帧、画面 dHash 明显变化，或距离上次判断达到强制间隔时才发起请求；同一时刻只允许一个请求，积压时只保留最新一帧。
 
-- 本轮第一次观察；
-- 刚从 `Away` 状态返回；
-- 256-bit dHash 汉明距离达到 40；
-- 距离上一次成功判断达到 60 秒；
-- 当前已明确分心，距离上一次成功判断达到 30 秒。
+不开启手动专注模式也能工作。学习与工作持续约 30 秒后进入自动工作状态；如果随后被 ActivityWatch 明确识别为娱乐，连续约 2 分钟会第一次提醒，约 5 分钟会再次提醒。未知活动会记录为“其它”，可通过手动纠正规则提高后续识别准确率。
 
-任何时刻只允许一个 AI 请求。请求期间出现的新观察会合并为一个 latest-only 待处理观察，避免形成请求队列和费用堆积。
+视觉判断只产生三种 AI 状态：`focused` 表示与目标直接相关，`wandering` 表示关联较弱或证据不足，`distracted` 表示明确偏离目标。`away` 完全由 Windows 输入空闲检测产生；网络或模型故障则单独标记为不可用，不会被伪装成某种专注状态。
 
-## 状态和提醒规则
+## 隐私设计
 
-模型只返回三种语义状态，`Away` 由 Windows 本机检测产生，网络错误则由独立的可用性状态表示：
+隐私不是附加设置，而是项目的默认边界。
 
-| 状态 | 判断来源 | 提醒策略 |
+| 数据 | 保存位置 | 是否发往模型 |
 | --- | --- | --- |
-| `Focused` | AI | 不提醒 |
-| `Wandering` | AI | 连续 120 秒后显示 8 秒顶部胶囊，持续时每 60 秒最多一次 |
-| `Distracted` | AI | 首次立即胶囊、托盘和声音；连续 30 秒且至少两次独立判断后显示一次全屏遮罩 |
-| `Away` | 本机 | 空闲 60 秒进入；总空闲 180 秒召回，此后每 30 秒重复 |
+| API Key | Windows DPAPI CurrentUser 加密 | 仅作为 HTTPS Bearer 凭据 |
+| 屏幕图片 | 只在内存中短暂停留，不写磁盘 | 仅在触发视觉判断时发送 |
+| ActivityWatch 原始数据 | ActivityWatch 自己的本机存储 | 不上传原始数据库；低置信度活动可发送精简文本分类 |
+| 目标、事务、记忆 | `%LocalAppData%\Vigil\Vigil.db`，敏感文本使用 DPAPI 保护 | 仅在对应 AI 功能需要时发送 |
+| 日志 | `%LocalAppData%\Vigil` | 不记录 API Key、请求正文、图片 Base64 或完整模型响应 |
 
-全屏遮罩提供“返回目标”和“AI 误判，本段不再提醒”。误判静音只影响当前连续分心区间，模型明确离开 `Distracted` 后自动复位。
+本地网页服务只监听随机的 `127.0.0.1` 端口，使用每次启动随机生成的 HttpOnly 会话令牌，并限制跨来源写操作。所有 Vigil 原生窗口会请求 Windows 截屏排除；如果主窗口无法成功排除，自动视觉识别会停用。
 
-## 隐私与安全
+请注意：视觉判断仍然需要将压缩截图发送给你自己配置的云端模型服务。使用前请阅读对应服务商的隐私政策，不要在目标或记忆中写入不必要的敏感信息。导出 ZIP 不包含 API Key、截图、日志或 ActivityWatch 原始库，但 ZIP 本身没有密码保护。
 
-ADHD Focus Guard 的设计边界是“发送必要信息，但不建立屏幕行为档案”：
+## 快速开始
 
-- 截图缩放到最长边 1280，JPEG 质量 65，只在内存中处理；
-- Vigil 自己的主窗口、胶囊和遮罩通过 `WDA_EXCLUDEFROMCAPTURE` 排除出截图；
-- 截图、Base64、逐帧活动和临时图片文件不会写入磁盘；
-- API Key 使用 Windows DPAPI `CurrentUser` 加密，并与 Base URL 绑定；
-- HTTP 只接受 HTTPS，拒绝带用户信息、查询参数和片段的 Base URL；
-- 禁止自动重定向，避免 Bearer Token 被转发到其他端点；
-- 响应体限制为 1 MiB，日志不记录密钥、请求正文、图片或完整响应；
-- 会话结束后清理 JPEG、dHash 和临时分心活动引用；
-- 迟到的 AI 结果带有 generation 校验，不能修改已结束会话。
+### 环境要求
 
-本地目录位于 `%LocalAppData%\Vigil`：
+- Windows 11 x64
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [ActivityWatch](https://activitywatch.net/)；仅手动专注模式可以不安装
+- 支持 Chat Completions 的文本模型，以及支持图片输入的视觉模型
 
-| 文件 | 内容 |
-| --- | --- |
-| `settings.json` | Base URL 和模型名，不含密钥 |
-| `api-key.bin` | DPAPI 加密后的 API Key |
-| `Vigil.db` | 目标、统计与最终复盘 |
-| `vigil.log` | 有长度限制且不含请求正文的错误日志 |
-
-> [!NOTE]
-> 目标和最终复盘目前以明文保存在当前 Windows 用户的 SQLite 数据库中。截图虽然不落盘，但会发送给所配置的云端服务。
-
-## 模型配置
-
-默认配置：
-
-```text
-Base URL: https://api.moonshot.cn/v1
-Model:    kimi-k2.6
-```
-
-Kimi K2.5/K2.6 请求会自动关闭深度思考。屏幕判断最多生成 200 Tokens，复盘最多生成 600 Tokens，以降低延迟和费用。连接测试使用程序生成的 `VIGIL TEST 42` 图片，不会截取真实桌面。
-
-也可以配置其他兼容 Chat Completions、支持 JPEG Data URL 图片输入的 HTTPS 服务。程序请求地址固定为：
-
-```text
-{BaseUrl}/chat/completions
-```
-
-## 环境要求
-
-- Windows 11 x64；
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)；
-- 一个支持图片输入的兼容 Chat Completions API。
-
-## 从源码运行
+### 从源码运行
 
 ```powershell
 git clone https://github.com/anqingan/ADHD-Focus-Guard.git
@@ -138,103 +100,81 @@ dotnet restore Vigil.Windows.slnx
 dotnet run --project src/Vigil.App/Vigil.App.csproj
 ```
 
-首次启动后打开模型配置，填写 Base URL、模型名和 API Key，保存并执行连接测试。开始会话后关闭主窗口只会隐藏到托盘，不会退出程序。使用 `Ctrl+Alt+Shift+Space` 可以随时重新显示主窗口。
+启动后应用驻留在系统托盘，并在默认浏览器打开本地工作台。进入“设置”，填写 Base URL、API Key、文本模型与视觉模型，然后先执行连接测试。测试使用程序生成的合成图片，不会截取真实屏幕。
 
-## 构建与发布
+默认配置面向 DeepSeek 兼容接口：
 
-编译和测试：
-
-```powershell
-dotnet build Vigil.Windows.slnx --configuration Release
-dotnet test Vigil.Windows.slnx --configuration Release
-dotnet list Vigil.Windows.slnx package --vulnerable --include-transitive
+```text
+Base URL     https://api.deepseek.com
+Text model  deepseek-v4-flash
+Vision      deepseek-v4-flash-vision-exp
 ```
 
-生成依赖本机 .NET 10 Desktop Runtime 的 x64 发布包：
+模型名称和可用性由服务商决定；如果实验模型下线或改名，只需在设置页更换，不需要修改代码。Base URL 必须是 HTTPS，程序统一请求 `{BaseUrl}/chat/completions`。
+
+### 构建可运行目录
+
+依赖本机 .NET 10 Runtime 的轻量发布：
 
 ```powershell
 .\scripts\publish.ps1
 ```
 
-生成体积更大但无需预装 .NET Runtime 的自包含发布包：
+包含运行时的独立发布：
 
 ```powershell
 .\scripts\publish.ps1 -SelfContained
 ```
 
-输出位于 `artifacts\ADHD-Focus-Guard-win-x64`。当前项目还没有安装器、代码签名和自动更新，Windows SmartScreen 可能会提示未知发布者。
+输出位于 `artifacts/ADHD-Focus-Guard-win-x64`。当前版本没有安装器和代码签名，Windows 可能显示未知发布者提示；请只运行自己构建或从本仓库 Releases 下载的文件。
 
-## 项目结构
+## 使用方式
+
+第一次启动电脑后的活动日以每天 08:00 为边界。你可以在今日计划弹窗或目标页一次写下今天想完成的事情，AI 会先生成可编辑的拆分与归类预览，只有确认后才写入目标。
+
+平时让 ActivityWatch 在后台运行即可。ADHD Focus Guard 会持续记录活动，在明确进入工作状态后自动启动低频视觉判断；你也可以在“专注”页主动开始一段目标明确的计时。关闭浏览器标签页不会退出后台程序，显示、停止当前会话和退出都可以从托盘完成，全局快捷键为 `Ctrl+Alt+Shift+Space`。
+
+统计页可以切换今天、3 天、7 天、14 天和 30 天，集中查看分类堆叠图、时间占比、24 小时节律、活动排行、时间线、当前目标和 AI 预算。更完整的步骤见[使用指南](docs/使用指南.md)。
+
+## 技术架构
 
 ```text
-ADHD-Focus-Guard
-├─ src
-│  ├─ Vigil.App             WPF 界面、托盘、快捷键和提醒窗口
-│  ├─ Vigil.Core            状态机、计时、dHash 和干预策略
-│  └─ Vigil.Infrastructure  截屏、Windows API、AI、DPAPI 与 SQLite
-├─ tests
-│  └─ Vigil.Tests           单元、HTTP 合约及 Windows 集成测试
-├─ tools
-│  └─ Vigil.Configure       本机安全配置与合成图片连接测试
-├─ docs
-│  └─ 产品功能与实现逻辑.md
-└─ scripts
-   └─ publish.ps1
+src/
+├─ Vigil.Core/            领域模型、状态机、dHash、计时与提醒策略
+├─ Vigil.Infrastructure/  ActivityWatch、GDI、DPAPI、SQLite、AI 与导入导出
+└─ Vigil.App/             WPF 宿主、本地 ASP.NET Core 服务和浏览器工作台
+tests/
+└─ Vigil.Tests/           核心规则、HTTP 合约、数据库与 Windows 集成测试
 ```
 
-```mermaid
-flowchart LR
-    App["Vigil.App<br/>WPF / Tray / Overlay"] --> Core["Vigil.Core<br/>State Machine / Policy"]
-    Core --> Infra["Vigil.Infrastructure<br/>Windows / AI / SQLite"]
-    Infra --> Windows["Windows APIs"]
-    Infra --> Provider["Vision API"]
-    Infra --> SQLite["Local SQLite"]
+WPF 宿主负责托盘、全局快捷键、提示音、顶部胶囊、全屏遮罩和 Windows 截屏排除。ASP.NET Core/Kestrel 仅监听回环地址，向原生 HTML/CSS/JavaScript 工作台提供本地 API。核心规则放在不依赖 UI 的 `Vigil.Core`，便于单元测试和未来替换界面。
+
+主要依赖保持克制：`.NET 10`、WPF、ASP.NET Core、`Microsoft.Data.Sqlite`、Windows 原生 API 和 ActivityWatch HTTP API。项目没有遥测 SDK、广告 SDK 或云端账户系统。
+
+## 开发与验证
+
+```powershell
+dotnet test Vigil.Windows.slnx --configuration Release
+dotnet build Vigil.Windows.slnx --configuration Release
+dotnet list Vigil.Windows.slnx package --vulnerable --include-transitive
 ```
 
-`Vigil.Core` 不依赖 WPF，集中维护产品规则；`Vigil.Infrastructure` 实现所有平台和外部系统访问；`Vigil.App` 只负责用户交互和 Windows 桌面集成。
+测试覆盖 dHash 边界、latest-only 并发、状态累计、空闲切换、渐进提醒、误判静音、停止后的迟到结果、ActivityWatch 合约、AI 预算、SQLite/DPAPI 往返、目标历史、事务、记忆和今日目标分析。涉及截屏、DPI、托盘、快捷键、睡眠恢复和真实模型的改动仍需要在 Windows 桌面进行人工验证。
 
-更完整的状态流转、提醒策略、数据结构和隐私边界见 [产品功能与实现逻辑](docs/产品功能与实现逻辑.md)。
+## 当前边界与路线图
 
-## 质量与测试
+项目目前处于早期公开预览阶段，只支持 Windows 11、x64、简体中文和主显示器。暂不包含安装器、代码签名、自动更新、多显示器、本地模型、移动端、云同步或团队监控。
 
-当前自动化测试覆盖：
+接下来的重点是提高未知活动的即时分类能力、减少自动模式盲区、补充多显示器与睡眠恢复测试、提供签名安装包，并让分类规则和费用估算更透明。规划背景与已确认的产品决策见[产品规划](docs/产品规划-v2-目标与活动记忆系统.md)。
 
-- 256-bit dHash 和阈值边界；
-- 四态时间累计及未知时间守恒；
-- 走神、分心升级、误判静音和跨会话清理；
-- latest-only 并发、取消、超时及停止后的迟到结果；
-- HTTP 401/429/5xx、空响应、代码围栏 JSON 和超大响应；
-- DPAPI 密钥保护、端点篡改和 SQLite 中断会话；
-- 截图不落盘、GDI 资源释放及前台窗口句柄释放；
-- 休息自动结束、提前结束以及休息期间不调用 AI。
+## 参与贡献
 
-当前 Release 验证为 35 项测试通过，NuGet 已知漏洞为 0。GitHub Actions 在 `windows-latest` 上执行 Release 构建和测试。
+欢迎提交 Issue 和 Pull Request，尤其是稳定性、隐私保护、ActivityWatch 兼容、Windows DPI、多显示器、无障碍和测试覆盖方面的改进。提交前请先阅读[贡献指南](CONTRIBUTING.md)和[安全策略](SECURITY.md)。安全问题请优先使用 GitHub Private vulnerability reporting，不要在公开 Issue 中附带密钥、截图、数据库或日志原文。
 
-## 当前限制
+## 致谢与来源说明
 
-- 仅支持 Windows 11 主显示器；
-- 仅提供简体中文界面；
-- 没有本地模型、多显示器、安装器、签名和自动更新；
-- 睡眠和锁屏期间截止时间继续推进，无法观察的时间计入未知；
-- AI 判断可能误判，提醒设计用于辅助自我管理，不应作为考勤或绩效依据。
+本项目从零使用 C# 实现。开源项目 [Vigil](https://github.com/ccmilu/Vigil) 提供了“目标驱动的屏幕理解与渐进纠偏”这一产品启发，但本仓库没有复制其 Swift 平台代码。ActivityWatch、DeepSeek 及其他第三方服务分别遵循其自身许可证与服务条款。
 
-## 路线图
+## License
 
-- 多显示器与显示器选择；
-- MSIX/安装器、代码签名和自动更新；
-- 可配置的模型分层复核与费用上限；
-- 本地视觉模型和完全离线模式；
-- 数据库加密、导出和统计趋势；
-- 多语言与无障碍体验。
-
-## 与原 Vigil 的关系
-
-本项目参考了 [ccmilu/Vigil](https://github.com/ccmilu/Vigil) 的产品理念，但 Windows 版本从零使用 C#、WPF 和 Windows API 实现，不复制 Swift 平台代码。原项目仅作为产品逻辑参考。
-
-## 贡献与安全
-
-提交改动前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。发现安全问题时请不要公开提交包含密钥、截图或隐私数据的 Issue，处理方式见 [SECURITY.md](SECURITY.md)。
-
-## 许可证
-
-当前仓库尚未指定开源许可证。源代码可供查看和评估，但在许可证明确前，不默认授予复制、修改或分发权。公开推广或接受外部贡献前，应完成与原项目边界相关的许可证审查。
+[MIT License](LICENSE) © 2026 ADHD Focus Guard contributors.

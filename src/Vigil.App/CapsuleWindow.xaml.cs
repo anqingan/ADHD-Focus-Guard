@@ -41,14 +41,6 @@ public partial class CapsuleWindow : Window
         PositionTopCenter();
     }
 
-    public void SetBreakContent(string message)
-    {
-        TitleText.Text = "休息结束";
-        MessageText.Text = message;
-        StateDot.Fill = Brushes.ForestGreen;
-        PositionTopCenter();
-    }
-
     private void PositionTopCenter()
     {
         var area = SystemParameters.WorkArea;

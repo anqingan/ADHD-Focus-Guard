@@ -53,9 +53,6 @@ public sealed class WindowsReminderService : IReminderService, IDisposable
             case ReminderKind.HideSoftReminder:
                 CloseCapsule();
                 break;
-            case ReminderKind.BreakCompleted:
-                ShowBreakCompleted(request.Message);
-                break;
         }
     }
 
@@ -94,22 +91,6 @@ public sealed class WindowsReminderService : IReminderService, IDisposable
         window.Activate();
         _overlayTimer = new CancellationTokenSource();
         _ = CloseLaterAsync(window, TimeSpan.FromSeconds(15), _overlayTimer.Token);
-    }
-
-    private void ShowBreakCompleted(string message)
-    {
-        CloseCapsule();
-        var window = new CapsuleWindow();
-        _capsule = window;
-        window.Closed += (_, _) => ReleaseCapsule(window);
-        window.SetBreakContent(message);
-        window.Show();
-        _capsuleTimer = new CancellationTokenSource();
-        _ = CloseLaterAsync(window, TimeSpan.FromSeconds(8), _capsuleTimer.Token);
-        _tray.BalloonTipTitle = "Vigil · 休息结束";
-        _tray.BalloonTipText = message;
-        _tray.ShowBalloonTip(8_000);
-        SystemSounds.Asterisk.Play();
     }
 
     private async Task CloseLaterAsync(Window window, TimeSpan delay, CancellationToken cancellationToken)

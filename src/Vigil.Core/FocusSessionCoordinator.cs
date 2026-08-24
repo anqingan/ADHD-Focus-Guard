@@ -17,11 +17,9 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
     private readonly object _stateGate = new();
 
     private CancellationTokenSource? _lifetimeCts;
-    private CancellationTokenSource? _breakCts;
     private Task? _tickerTask;
     private Task? _observationTimerTask;
     private Task? _observationTask;
-    private Task? _breakTask;
     private bool _pendingObservation;
     private long _generation;
 
@@ -67,7 +65,6 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
 
     public event EventHandler<SessionSnapshot>? SnapshotChanged;
     public event EventHandler<SessionSummary>? SessionCompleted;
-    public event EventHandler? BreakCompleted;
 
     public async Task StartAsync(string goal, int durationMinutes, CancellationToken cancellationToken = default)
     {
@@ -81,7 +78,7 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(durationMinutes), "时长必须为 1–300 分钟。");
         }
-        if (Phase is SessionPhase.Running or SessionPhase.Resting or SessionPhase.Summarizing)
+        if (Phase is SessionPhase.Running or SessionPhase.Summarizing)
         {
             throw new InvalidOperationException("已有专注会话正在进行。");
         }
@@ -132,60 +129,6 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
     public Task StopAsync(CancellationToken cancellationToken = default) =>
         CompleteAsync(SessionCompletionKind.Manual, cancellationToken);
 
-    public Task StartBreakAsync(TimeSpan duration)
-    {
-        if (duration <= TimeSpan.Zero || duration > TimeSpan.FromHours(1))
-        {
-            throw new ArgumentOutOfRangeException(nameof(duration), "休息时长必须大于 0 且不超过 60 分钟。");
-        }
-        if (Phase != SessionPhase.Completed)
-        {
-            throw new InvalidOperationException("只能在完成一轮专注后开始休息。");
-        }
-
-        _generation++;
-        _breakCts?.Dispose();
-        _breakCts = new CancellationTokenSource();
-        _goal = "休息中";
-        _plannedSeconds = Math.Max(1, (int)Math.Ceiling(duration.TotalSeconds));
-        _deadline = DateTimeOffset.UtcNow.Add(duration);
-        _level = null;
-        _availability = ObservationAvailability.Unavailable;
-        _activityText = "休息期间不会观察屏幕，也不会调用 AI。";
-        _connectionMessage = "";
-        Phase = SessionPhase.Resting;
-        var generation = _generation;
-        _breakTask = RunBreakTimerAsync(generation, _breakCts.Token);
-        RaiseSnapshot();
-        return Task.CompletedTask;
-    }
-
-    public async Task StopBreakAsync()
-    {
-        if (Phase != SessionPhase.Resting)
-        {
-            return;
-        }
-
-        _generation++;
-        Phase = SessionPhase.Idle;
-        var cancellation = _breakCts;
-        var task = _breakTask;
-        _breakCts = null;
-        _breakTask = null;
-        if (cancellation is not null)
-        {
-            await cancellation.CancelAsync();
-        }
-        if (task is not null)
-        {
-            try { await task; } catch (OperationCanceledException) { }
-        }
-        cancellation?.Dispose();
-        ResetBreakSnapshot();
-        RaiseSnapshot();
-    }
-
     public void MuteCurrentDistraction()
     {
         _policy.MuteCurrentDistraction();
@@ -194,68 +137,12 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
 
     public void ResetToIdle()
     {
-        if (Phase is SessionPhase.Running or SessionPhase.Resting or SessionPhase.Summarizing)
+        if (Phase is SessionPhase.Running or SessionPhase.Summarizing)
         {
             throw new InvalidOperationException("进行中的会话不能重置。");
         }
         Phase = SessionPhase.Idle;
         RaiseSnapshot();
-    }
-
-    private async Task RunBreakTimerAsync(long generation, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(_options.TickInterval);
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                if (generation != _generation || Phase != SessionPhase.Resting)
-                {
-                    return;
-                }
-                if (DateTimeOffset.UtcNow < _deadline)
-                {
-                    RaiseSnapshot();
-                    continue;
-                }
-
-                _breakCts?.Dispose();
-                _breakCts = null;
-                _breakTask = null;
-                Phase = SessionPhase.Idle;
-                ResetBreakSnapshot();
-                RaiseSnapshot();
-                _reminders.Handle(new ReminderRequest(
-                    ReminderKind.BreakCompleted,
-                    FocusLevel.Focused,
-                    "休息结束了，准备开始下一轮。",
-                    ""));
-                BreakCompleted?.Invoke(this, EventArgs.Empty);
-                return;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (generation == _generation)
-            {
-                _breakCts?.Dispose();
-                _breakCts = null;
-                _breakTask = null;
-            }
-        }
-    }
-
-    private void ResetBreakSnapshot()
-    {
-        _goal = "";
-        _plannedSeconds = 0;
-        _level = null;
-        _availability = ObservationAvailability.Unavailable;
-        _activityText = "";
-        _connectionMessage = "";
     }
 
     private async Task RunTickerAsync(long generation, CancellationToken cancellationToken)
@@ -595,13 +482,14 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
         lock (_stateGate)
         {
             return _accumulator.Build(_sessionId, _goal, _plannedSeconds, actual, _startedAt, now, kind, summaryText)
-                with { EndedAtUtc = endedAt };
+                with
+            { EndedAtUtc = endedAt };
         }
     }
 
     private SessionSnapshot BuildSnapshot(DateTimeOffset now)
     {
-        var remaining = Phase is SessionPhase.Running or SessionPhase.Resting
+        var remaining = Phase == SessionPhase.Running
             ? Math.Max(0, (int)Math.Ceiling((_deadline - now).TotalSeconds))
             : 0;
         return new(
@@ -651,11 +539,7 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
         {
             await _lifetimeCts.CancelAsync();
         }
-        if (_breakCts is not null)
-        {
-            await _breakCts.CancelAsync();
-        }
-        var tasks = new[] { _tickerTask, _observationTimerTask, _observationTask, _breakTask }
+        var tasks = new[] { _tickerTask, _observationTimerTask, _observationTask }
             .Where(task => task is not null)
             .Cast<Task>();
         try
@@ -671,7 +555,6 @@ public sealed class FocusSessionCoordinator : IAsyncDisposable
             // been converted into session availability where applicable.
         }
         _lifetimeCts?.Dispose();
-        _breakCts?.Dispose();
         ClearTransientObservationData();
         _completionGate.Dispose();
     }
