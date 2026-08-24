@@ -6,6 +6,7 @@ public sealed class ActivityTrackingService : IAsyncDisposable
 {
     private readonly IActivityWatchClient _client;
     private readonly IPersonalDataRepository _repository;
+    private readonly AutomaticReminderLimiter _reminderLimiter;
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _loop;
     private ActivitySegment? _current;
@@ -16,10 +17,14 @@ public sealed class ActivityTrackingService : IAsyncDisposable
     private bool _entertainmentFiveMinuteSent;
     private DateTimeOffset? _presentSince;
 
-    public ActivityTrackingService(IActivityWatchClient client, IPersonalDataRepository repository)
+    public ActivityTrackingService(
+        IActivityWatchClient client,
+        IPersonalDataRepository repository,
+        AutomaticReminderLimiter? reminderLimiter = null)
     {
         _client = client;
         _repository = repository;
+        _reminderLimiter = reminderLimiter ?? new AutomaticReminderLimiter();
     }
 
     public bool IsActiveWorkMode { get; private set; }
@@ -158,7 +163,8 @@ public sealed class ActivityTrackingService : IAsyncDisposable
             if (!_entertainmentTwoMinuteSent && duration >= TimeSpan.FromMinutes(2))
             {
                 _entertainmentTwoMinuteSent = true;
-                GentleReminder?.Invoke(this, "已经连续娱乐 2 分钟，确认一下是否要回到当前目标。");
+                if (_reminderLimiter.TryAcquire())
+                    GentleReminder?.Invoke(this, "已经连续娱乐 2 分钟，确认一下是否要回到刚才的工作。");
                 SetActive(false);
             }
         }
@@ -167,7 +173,8 @@ public sealed class ActivityTrackingService : IAsyncDisposable
         if (_entertainmentStarted is not null && !_entertainmentFiveMinuteSent && now - _entertainmentStarted >= TimeSpan.FromMinutes(5))
         {
             _entertainmentFiveMinuteSent = true;
-            GentleReminder?.Invoke(this, "本次娱乐已持续 5 分钟，之后只记录时间，不再重复提醒。");
+            if (_reminderLimiter.TryAcquire())
+                GentleReminder?.Invoke(this, "本次娱乐已持续 5 分钟，之后只记录时间，不再重复提醒。");
         }
         if (IsActiveWorkMode && now - _nonWorkStarted >= TimeSpan.FromMinutes(2)) SetActive(false);
     }
@@ -176,6 +183,7 @@ public sealed class ActivityTrackingService : IAsyncDisposable
     {
         if (IsActiveWorkMode == active) return;
         IsActiveWorkMode = active;
+        if (active) _reminderLimiter.Reset();
         ActiveModeChanged?.Invoke(this, active);
     }
 

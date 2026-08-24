@@ -11,7 +11,7 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
     private readonly Func<bool> _isManualSessionRunning;
     private readonly FocusEngineOptions _options;
     private readonly IAiBudgetTracker? _budget;
-    private readonly InterventionPolicy _policy = new();
+    private readonly AutomaticInterventionPolicy _policy;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _gate = new();
     private Task? _loop;
@@ -25,11 +25,13 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
 
     public AutomaticVisualMonitor(IFocusAiClient ai, IScreenCaptureService capture, IActivityContextService activity,
         IIdleService idle, IPersonalDataRepository repository, IReminderService reminders,
-        Func<bool> isManualSessionRunning, IAiBudgetTracker? budget = null, FocusEngineOptions? options = null)
+        Func<bool> isManualSessionRunning, IAiBudgetTracker? budget = null, FocusEngineOptions? options = null,
+        AutomaticReminderLimiter? reminderLimiter = null)
     {
         _ai = ai; _capture = capture; _activity = activity; _idle = idle; _repository = repository; _reminders = reminders;
         _isManualSessionRunning = isManualSessionRunning; _options = options ?? new FocusEngineOptions();
         _budget = budget;
+        _policy = new AutomaticInterventionPolicy(reminderLimiter ?? new AutomaticReminderLimiter());
     }
 
     public string StatusText { get; private set; } = "自动视觉识别待命";

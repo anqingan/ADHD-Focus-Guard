@@ -54,7 +54,8 @@ public partial class App : System.Windows.Application
             var personalAi = new DeepSeekPersonalAiService(_httpClient, Settings, _budget);
             _batchClassifier = new ActivityBatchClassificationService(PersonalRepository, personalAi, _budget);
             _reportGenerator = new ReportGenerationService(PersonalRepository, personalAi, _budget);
-            _tracker = new ActivityTrackingService(new ActivityWatchClient(_httpClient), PersonalRepository);
+            var automaticReminderLimiter = new AutomaticReminderLimiter();
+            _tracker = new ActivityTrackingService(new ActivityWatchClient(_httpClient), PersonalRepository, automaticReminderLimiter);
             _trayIcon = CreateTrayIcon();
             _reminders = new WindowsReminderService(_trayIcon, () =>
             {
@@ -76,7 +77,8 @@ public partial class App : System.Windows.Application
                 PersonalRepository,
                 _reminders,
                 () => Coordinator.Phase == SessionPhase.Running,
-                _budget);
+                _budget,
+                reminderLimiter: automaticReminderLimiter);
 
             _mainWindow = new MainWindow(Coordinator, Repository, Settings, AiClient, PersonalRepository, _tracker, personalAi, _visualMonitor);
             MainWindow = _mainWindow;
@@ -214,7 +216,7 @@ public partial class App : System.Windows.Application
         if (_trayIcon is null) return;
         Dispatcher.Invoke(() =>
         {
-            _trayIcon.BalloonTipTitle = "Vigil · 回到目标";
+            _trayIcon.BalloonTipTitle = "Vigil · 活动切换提醒";
             _trayIcon.BalloonTipText = message;
             _trayIcon.ShowBalloonTip(8_000);
             System.Media.SystemSounds.Asterisk.Play();
