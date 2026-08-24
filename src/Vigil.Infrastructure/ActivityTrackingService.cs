@@ -7,6 +7,7 @@ public sealed class ActivityTrackingService : IAsyncDisposable
     private readonly IActivityWatchClient _client;
     private readonly IPersonalDataRepository _repository;
     private readonly AutomaticReminderLimiter _reminderLimiter;
+    private readonly AutomaticActivitySwitchPolicy _switchPolicy;
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _loop;
     private ActivitySegment? _current;
@@ -25,6 +26,7 @@ public sealed class ActivityTrackingService : IAsyncDisposable
         _client = client;
         _repository = repository;
         _reminderLimiter = reminderLimiter ?? new AutomaticReminderLimiter();
+        _switchPolicy = new AutomaticActivitySwitchPolicy(_reminderLimiter);
     }
 
     public bool IsActiveWorkMode { get; private set; }
@@ -81,6 +83,7 @@ public sealed class ActivityTrackingService : IAsyncDisposable
             await FlushCurrentAsync(cancellationToken);
             SetActive(false);
             _workStarted = _nonWorkStarted = _entertainmentStarted = null;
+            _switchPolicy.Reset();
             _presentSince = null;
             StatusText = "已离开电脑，暂停活动计时和截图。";
             StatusChanged?.Invoke(this, StatusText);
@@ -98,6 +101,8 @@ public sealed class ActivityTrackingService : IAsyncDisposable
         }
         var display = ActivityClassifier.BuildDisplayName(snapshot);
         var now = snapshot.ObservedAt;
+        var switchReminder = _switchPolicy.Observe(snapshot.Application, snapshot.Domain, display, category, now);
+        if (switchReminder is not null) GentleReminder?.Invoke(this, switchReminder);
         await AppendAsync(snapshot, display, category, confidence, now, cancellationToken);
         UpdateMode(category, now);
         StatusText = $"{CategoryName(category)} · {display}";
@@ -163,9 +168,9 @@ public sealed class ActivityTrackingService : IAsyncDisposable
             if (!_entertainmentTwoMinuteSent && duration >= TimeSpan.FromMinutes(2))
             {
                 _entertainmentTwoMinuteSent = true;
+                SetActive(false);
                 if (_reminderLimiter.TryAcquire())
                     GentleReminder?.Invoke(this, "已经连续娱乐 2 分钟，确认一下是否要回到刚才的工作。");
-                SetActive(false);
             }
         }
         else if (category != ActivityCategory.Entertainment) _entertainmentStarted = null;

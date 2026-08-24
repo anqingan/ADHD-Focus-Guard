@@ -7,11 +7,9 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
     private readonly IActivityContextService _activity;
     private readonly IIdleService _idle;
     private readonly IPersonalDataRepository _repository;
-    private readonly IReminderService _reminders;
     private readonly Func<bool> _isManualSessionRunning;
     private readonly FocusEngineOptions _options;
     private readonly IAiBudgetTracker? _budget;
-    private readonly AutomaticInterventionPolicy _policy;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _gate = new();
     private Task? _loop;
@@ -24,14 +22,12 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
     private DateTimeOffset? _lastAnalysis;
 
     public AutomaticVisualMonitor(IFocusAiClient ai, IScreenCaptureService capture, IActivityContextService activity,
-        IIdleService idle, IPersonalDataRepository repository, IReminderService reminders,
-        Func<bool> isManualSessionRunning, IAiBudgetTracker? budget = null, FocusEngineOptions? options = null,
-        AutomaticReminderLimiter? reminderLimiter = null)
+        IIdleService idle, IPersonalDataRepository repository,
+        Func<bool> isManualSessionRunning, IAiBudgetTracker? budget = null, FocusEngineOptions? options = null)
     {
-        _ai = ai; _capture = capture; _activity = activity; _idle = idle; _repository = repository; _reminders = reminders;
+        _ai = ai; _capture = capture; _activity = activity; _idle = idle; _repository = repository;
         _isManualSessionRunning = isManualSessionRunning; _options = options ?? new FocusEngineOptions();
         _budget = budget;
-        _policy = new AutomaticInterventionPolicy(reminderLimiter ?? new AutomaticReminderLimiter());
     }
 
     public string StatusText { get; private set; } = "自动视觉识别待命";
@@ -44,15 +40,12 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_active == active) return; _active = active; _generation++; _pending = false; _policy.Reset();
+            if (_active == active) return; _active = active; _generation++; _pending = false;
             if (_lastHash is not null) { Array.Clear(_lastHash); _lastHash = null; }
             _lastAnalysis = null;
         }
-        if (!active) _reminders.CloseAll();
         SetStatus(active ? "已进入自动视觉识别" : "自动视觉识别待命");
     }
-
-    public void MuteCurrentDistraction() => _policy.MuteCurrentDistraction();
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -104,7 +97,6 @@ public sealed class AutomaticVisualMonitor : IAsyncDisposable
                 if (_lastHash is not null) Array.Clear(_lastHash); _lastHash = frame.Hash.ToArray(); _lastAnalysis = now;
             }
             SetStatus($"视觉判断：{judgment.Level} · {judgment.Activity}");
-            foreach (var action in _policy.Evaluate(judgment.Level, now, goalText, judgment.Reminder, true, _idle.GetIdleDuration())) _reminders.Handle(action);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception ex) { SetStatus("视觉识别暂不可用：" + Sanitize(ex.Message)); }

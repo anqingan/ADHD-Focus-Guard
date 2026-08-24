@@ -44,11 +44,6 @@ public sealed class WindowsReminderService : IReminderService, IDisposable
                 _tray.BalloonTipText = request.Message;
                 _tray.ShowBalloonTip(8_000);
                 break;
-            case ReminderKind.AutomaticTray:
-                _tray.BalloonTipTitle = "Vigil · 活动切换提醒";
-                _tray.BalloonTipText = request.Message;
-                _tray.ShowBalloonTip(8_000);
-                break;
             case ReminderKind.Sound:
                 SystemSounds.Exclamation.Play();
                 break;

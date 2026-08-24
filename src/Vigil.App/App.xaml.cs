@@ -60,7 +60,6 @@ public partial class App : System.Windows.Application
             _reminders = new WindowsReminderService(_trayIcon, () =>
             {
                 Coordinator.MuteCurrentDistraction();
-                _visualMonitor?.MuteCurrentDistraction();
             });
             Coordinator = new FocusSessionCoordinator(
                 AiClient,
@@ -75,10 +74,8 @@ public partial class App : System.Windows.Application
                 new WindowsActivityContextService(),
                 new WindowsIdleService(),
                 PersonalRepository,
-                _reminders,
                 () => Coordinator.Phase == SessionPhase.Running,
-                _budget,
-                reminderLimiter: automaticReminderLimiter);
+                _budget);
 
             _mainWindow = new MainWindow(Coordinator, Repository, Settings, AiClient, PersonalRepository, _tracker, personalAi, _visualMonitor);
             MainWindow = _mainWindow;
@@ -213,13 +210,10 @@ public partial class App : System.Windows.Application
 
     private void Tracker_GentleReminder(object? sender, string message)
     {
-        if (_trayIcon is null) return;
+        if (_reminders is null) return;
         Dispatcher.Invoke(() =>
         {
-            _trayIcon.BalloonTipTitle = "Vigil · 活动切换提醒";
-            _trayIcon.BalloonTipText = message;
-            _trayIcon.ShowBalloonTip(8_000);
-            System.Media.SystemSounds.Asterisk.Play();
+            _reminders.Handle(new ReminderRequest(ReminderKind.Capsule, FocusLevel.Wandering, message, ""));
         });
     }
 

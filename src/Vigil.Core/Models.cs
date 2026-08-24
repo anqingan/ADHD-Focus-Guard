@@ -36,7 +36,6 @@ public enum ReminderKind
 {
     Capsule,
     Tray,
-    AutomaticTray,
     Sound,
     FullScreenOverlay,
     HideSoftReminder
