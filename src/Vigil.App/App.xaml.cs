@@ -39,6 +39,7 @@ public partial class App : System.Windows.Application
             await Repository.MarkRunningSessionsInterruptedAsync();
             PersonalRepository = new SqlitePersonalDataRepository();
             await PersonalRepository.InitializeAsync();
+            await DailyGoalRollover.ExpireAsync(PersonalRepository, DateTimeOffset.Now);
 
             var handler = new SocketsHttpHandler
             {

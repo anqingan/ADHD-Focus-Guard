@@ -472,6 +472,7 @@ public sealed class LocalWebServer : IAsyncDisposable
 
         var activeGoals = goals.Where(goal => goal.Status is GoalStatus.NotStarted or GoalStatus.InProgress).ToArray();
         var completedGoals = goals.Count(goal => goal.Status == GoalStatus.Completed);
+        var incompleteGoals = goals.Count(goal => goal.Status == GoalStatus.Incomplete);
         var observed = work + entertainment + other;
         var categoryActivities = Enum.GetValues<ActivityCategory>()
             .Select(category =>
@@ -523,6 +524,7 @@ public sealed class LocalWebServer : IAsyncDisposable
                 active = activeGoals.Take(6),
                 activeCount = activeGoals.Length,
                 completedCount = completedGoals,
+                incompleteCount = incompleteGoals,
                 totalCount = goals.Count
             },
             budget

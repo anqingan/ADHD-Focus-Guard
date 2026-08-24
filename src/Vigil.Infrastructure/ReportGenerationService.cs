@@ -29,7 +29,7 @@ public sealed class ReportGenerationService : IAsyncDisposable
 
     public async Task GenerateMissingAsync(CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.Now; var todayStart = ActivityDayStart(now); var periods = new List<(ReportPeriod Period, DateTimeOffset Start, DateTimeOffset End)> { (ReportPeriod.Daily, todayStart.AddDays(-1), todayStart) };
+        var now = DateTimeOffset.Now; await DailyGoalRollover.ExpireAsync(_repository, now, cancellationToken); var todayStart = ActivityDayStart(now); var periods = new List<(ReportPeriod Period, DateTimeOffset Start, DateTimeOffset End)> { (ReportPeriod.Daily, todayStart.AddDays(-1), todayStart) };
         var daysFromMonday = ((int)todayStart.DayOfWeek + 6) % 7; var thisWeek = todayStart.AddDays(-daysFromMonday); periods.Add((ReportPeriod.Weekly, thisWeek.AddDays(-7), thisWeek));
         var thisMonth = AtLocal(new DateOnly(todayStart.Year, todayStart.Month, 1)); var previousMonth = thisMonth.AddMonths(-1); periods.Add((ReportPeriod.Monthly, previousMonth, thisMonth));
         var existing = await _repository.GetReportsAsync(cancellationToken);

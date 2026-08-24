@@ -19,6 +19,7 @@ public enum GoalStatus
 {
     NotStarted,
     InProgress,
+    Incomplete,
     Completed,
     Paused,
     Abandoned,
