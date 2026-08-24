@@ -445,22 +445,62 @@ public sealed class LocalWebServer : IAsyncDisposable
             }
         }
 
-        var topActivities = segments
-            .GroupBy(segment => segment.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new
+        var activityTotals = segments
+            .Select(segment => new
             {
-                name = group.Key,
-                seconds = group.Sum(segment => OverlapSeconds(segment.StartedAt, segment.EndedAt, start, end)),
-                category = group.GroupBy(segment => segment.Category).OrderByDescending(category => category.Count()).First().Key
+                segment.DisplayName,
+                segment.Category,
+                Seconds = OverlapSeconds(segment.StartedAt, segment.EndedAt, start, end)
             })
+            .Where(item => item.Seconds > 0)
+            .GroupBy(item => item.Category)
+            .SelectMany(categoryGroup => categoryGroup
+                .GroupBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .Select(nameGroup => new
+                {
+                    name = nameGroup.Key,
+                    category = categoryGroup.Key,
+                    seconds = nameGroup.Sum(item => item.Seconds)
+                }))
+            .ToArray();
+
+        var topActivities = activityTotals
             .Where(item => item.seconds > 0)
             .OrderByDescending(item => item.seconds)
-            .Take(8)
+            .Take(10)
             .ToArray();
 
         var activeGoals = goals.Where(goal => goal.Status is GoalStatus.NotStarted or GoalStatus.InProgress).ToArray();
         var completedGoals = goals.Count(goal => goal.Status == GoalStatus.Completed);
         var observed = work + entertainment + other;
+        var categoryActivities = Enum.GetValues<ActivityCategory>()
+            .Select(category =>
+            {
+                var categorySeconds = category switch
+                {
+                    ActivityCategory.WorkAndStudy => work,
+                    ActivityCategory.Entertainment => entertainment,
+                    _ => other
+                };
+                return new
+                {
+                    category,
+                    seconds = categorySeconds,
+                    shareOfObserved = observed == 0 ? 0 : Math.Round(categorySeconds * 100d / observed, 1),
+                    activities = activityTotals
+                        .Where(item => item.category == category)
+                        .OrderByDescending(item => item.seconds)
+                        .Take(6)
+                        .Select(item => new
+                        {
+                            item.name,
+                            item.seconds,
+                            shareOfCategory = categorySeconds == 0 ? 0 : Math.Round(item.seconds * 100d / categorySeconds, 1)
+                        })
+                        .ToArray()
+                };
+            })
+            .ToArray();
         return new
         {
             range = new { start, end, days = dayCount },
@@ -476,6 +516,7 @@ public sealed class LocalWebServer : IAsyncDisposable
             daily,
             hourly = hourly.Select((seconds, hour) => new { hour, seconds }).ToArray(),
             topActivities,
+            categoryActivities,
             timeline = segments.OrderByDescending(segment => segment.EndedAt).Take(12).ToArray(),
             goals = new
             {
