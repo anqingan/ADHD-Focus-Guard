@@ -6,6 +6,7 @@ public interface IPersonalDataRepository
 
     Task<IReadOnlyList<GoalRecord>> GetGoalsAsync(bool includeInactive = true, CancellationToken cancellationToken = default);
     Task SaveGoalAsync(GoalRecord goal, string changeKind, CancellationToken cancellationToken = default);
+    Task DeleteGoalAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GoalHistoryRecord>> GetGoalHistoryAsync(Guid goalId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ActionItemRecord>> GetActionItemsAsync(bool includeInactive = true, CancellationToken cancellationToken = default);

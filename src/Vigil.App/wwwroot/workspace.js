@@ -35,3 +35,84 @@ const renderGoalsBase=renderGoalsPage;
 renderGoalsPage=async function(root){await renderGoalsBase(root);const manualHorizon=$('#goalHorizon');const todayOption=manualHorizon?.querySelector('option[value="Today"]');if(todayOption)todayOption.remove();const column=root.querySelector('.workspace-column:first-child');column.insertAdjacentHTML('afterbegin',`<article class="workspace-card"><p class="panel-kicker">今日计划</p><h2>先让 AI 分析，再确认归类</h2><p class="hint">可以一次写多件事。AI 会拆成可验证的今日目标，并关联到长期、阶段或本周目标；确认前不会保存。</p><div class="field"><label for="dailyGoalSource">今天想完成什么</label><textarea id="dailyGoalSource" maxlength="8000" placeholder="例如：上午把报告数据部分写完，下午整理答辩材料，再回复老师邮件"></textarea></div><button id="analyzeDailyGoals" class="primary-button">AI 分析并归类</button><div id="dailyGoalDrafts" class="draft-list"></div></article>`);$('#analyzeDailyGoals').addEventListener('click',async()=>{const text=value('dailyGoalSource');if(!text)return showToast('先写下今天想完成的事情');const button=$('#analyzeDailyGoals');button.disabled=true;button.textContent='AI 正在分析…';try{const drafts=await api('/api/goals/analyze-daily',{method:'POST',body:JSON.stringify({text})});renderDailyGoalDrafts(drafts,root)}catch(error){showToast(error.message)}finally{button.disabled=false;button.textContent='AI 分析并归类'}})};
 
 function renderDailyGoalDrafts(drafts,root){const area=$('#dailyGoalDrafts');if(!drafts.length){area.innerHTML=empty('AI 没有整理出有效今日目标');return}area.innerHTML=`<p class="hint">请检查标题、分类和关联依据，确认后才会保存。</p>${drafts.map((draft,index)=>`<div class="draft"><input data-daily-title="${index}" value="${escapeHtml(draft.title)}"><div class="record-body">完成标准：${escapeHtml(draft.expectedOutcome||'未提供')}</div><div class="record-meta"><span class="badge">${escapeHtml(draft.classification)}</span><span>优先级 ${draft.priority}</span><span>·</span><span>${draft.estimatedMinutes||'—'} 分钟</span></div><div class="record-body">${escapeHtml(draft.reasoning||'')}</div></div>`).join('')}<button id="confirmDailyGoals" class="primary-button">确认并保存 ${drafts.length} 个今日目标</button>`;$('#confirmDailyGoals').addEventListener('click',async()=>{for(let index=0;index<drafts.length;index++){const title=document.querySelector(`[data-daily-title="${index}"]`).value.trim();if(!title)continue;await api('/api/goals',{method:'POST',body:JSON.stringify({horizon:'Today',title,expectedOutcome:drafts[index].expectedOutcome,status:'NotStarted',priority:drafts[index].priority,estimatedMinutes:drafts[index].estimatedMinutes,relatedGoalIds:drafts[index].relatedGoalIds})})}showToast('今日目标已按 AI 分析结果保存');renderGoalsPage(root)})}
+
+// Goal editing is layered here to keep the original page renderer small and preserve its status/history behavior.
+var dailyGoalParentOptions=[];
+const renderGoalsWithDailyPlan=renderGoalsPage;
+
+goalRecord=function(goal,editable){
+    const active=!['Completed','Abandoned','Archived'].includes(goal.status);
+    const statusActions=active?`<button class="chip-button" data-id="${goal.id}" data-goal-status="Completed">完成</button><button class="chip-button" data-id="${goal.id}" data-goal-status="${goal.status==='Paused'?'InProgress':'Paused'}">${goal.status==='Paused'?'继续':'暂停'}</button><button class="chip-button" data-id="${goal.id}" data-goal-status="Abandoned">放弃</button>`:'';
+    return `<div class="record" data-goal-card="${goal.id}"><div class="record-head"><div><span class="badge">${horizonLabels[goal.horizon]||goal.horizon}</span><div class="record-title">${escapeHtml(goal.title)}</div></div><span class="badge muted">${statusLabels[goal.status]||goal.status}</span></div>${goal.expectedOutcome?`<div class="record-body">${escapeHtml(goal.expectedOutcome)}</div>`:''}<div class="record-meta"><span>${goal.dueAt?`截止 ${new Date(goal.dueAt).toLocaleDateString('zh-CN')}`:'未设截止'}</span><span>·</span><span>${goal.estimatedMinutes?`${goal.estimatedMinutes} 分钟`:'未估时'}</span><span>·</span><span>更新于 ${new Date(goal.updatedAt).toLocaleDateString('zh-CN')}</span></div><div class="button-row">${statusActions}<button class="secondary-button" data-goal-edit="${goal.id}">修改</button><button class="danger-button" data-goal-delete="${goal.id}">删除</button></div><div class="goal-editor" data-goal-editor="${goal.id}" hidden><div class="field"><label>目标标题</label><input data-edit-field="title" maxlength="500" value="${escapeHtml(goal.title)}"></div><div class="field"><label>完成标准</label><textarea data-edit-field="outcome" maxlength="4000">${escapeHtml(goal.expectedOutcome||'')}</textarea></div><div class="field-row"><div class="field"><label>时间尺度</label><select data-edit-field="horizon">${goalEnumOptions(horizonLabels,goal.horizon)}</select></div><div class="field"><label>状态</label><select data-edit-field="status">${goalEnumOptions(statusLabels,goal.status,['NotStarted','InProgress','Paused','Completed','Abandoned','Archived'])}</select></div></div><div class="field-row"><div class="field"><label>优先级</label><select data-edit-field="priority"><option value="1" ${goal.priority===1?'selected':''}>高</option><option value="2" ${goal.priority===2?'selected':''}>中</option><option value="3" ${goal.priority===3?'selected':''}>低</option></select></div><div class="field"><label>预计分钟</label><input data-edit-field="minutes" type="number" min="1" max="100000" value="${goal.estimatedMinutes||''}"></div></div><div class="field"><label>截止日期</label><input data-edit-field="due" type="date" value="${isoDate(goal.dueAt)}"></div><div class="field"><label>关联目标</label><div class="relation-options" data-goal-relations="${goal.id}"></div></div><div class="button-row"><button class="primary-button" data-goal-save="${goal.id}">保存修改</button><button class="secondary-button" data-goal-cancel="${goal.id}">取消</button></div></div></div>`;
+};
+
+function goalEnumOptions(labels,current,allowed){
+    return (allowed||Object.keys(labels)).map(value=>`<option value="${value}" ${value===current?'selected':''}>${labels[value]||value}</option>`).join('');
+}
+
+renderGoalsPage=async function(root){
+    await renderGoalsWithDailyPlan(root);
+    const goals=await api('/api/goals');
+    dailyGoalParentOptions=goals.filter(goal=>goal.horizon!=='Today'&&!['Completed','Abandoned','Archived'].includes(goal.status));
+    root.querySelectorAll('[data-goal-relations]').forEach(container=>{
+        const goal=goals.find(item=>item.id===container.dataset.goalRelations);
+        const candidates=goals.filter(item=>item.id!==goal?.id&&!['Completed','Abandoned','Archived'].includes(item.status));
+        container.innerHTML=candidates.length?candidates.map(item=>`<label><input type="checkbox" value="${item.id}" ${goal?.relatedGoalIds?.includes(item.id)?'checked':''}> <span>${escapeHtml(item.title)}</span></label>`).join(''):'<span class="soft-label">暂无可关联目标</span>';
+    });
+    root.querySelectorAll('[data-goal-edit]').forEach(button=>button.addEventListener('click',()=>{
+        const editor=root.querySelector(`[data-goal-editor="${button.dataset.goalEdit}"]`);
+        editor.hidden=!editor.hidden;
+    }));
+    root.querySelectorAll('[data-goal-cancel]').forEach(button=>button.addEventListener('click',()=>{
+        root.querySelector(`[data-goal-editor="${button.dataset.goalCancel}"]`).hidden=true;
+    }));
+    root.querySelectorAll('[data-goal-save]').forEach(button=>button.addEventListener('click',async()=>{
+        const goal=goals.find(item=>item.id===button.dataset.goalSave);
+        const editor=root.querySelector(`[data-goal-editor="${goal.id}"]`);
+        const field=name=>editor.querySelector(`[data-edit-field="${name}"]`).value.trim();
+        const title=field('title');
+        if(!title)return showToast('目标标题不能为空');
+        const relatedGoalIds=[...editor.querySelectorAll('[data-goal-relations] input:checked')].map(input=>input.value);
+        await api('/api/goals',{method:'POST',body:JSON.stringify({...goal,title,expectedOutcome:field('outcome'),horizon:field('horizon'),status:field('status'),priority:Number(field('priority')),estimatedMinutes:field('minutes')?Number(field('minutes')):null,dueAt:field('due')||null,relatedGoalIds})});
+        showToast('目标已修改');
+        await renderGoalsPage(root);
+    }));
+    root.querySelectorAll('[data-goal-delete]').forEach(button=>button.addEventListener('click',async()=>{
+        const goal=goals.find(item=>item.id===button.dataset.goalDelete);
+        if(!confirm(`确定永久删除“${goal.title}”吗？相关历史也会删除，此操作无法撤销。`))return;
+        await api(`/api/goals/${goal.id}`,{method:'DELETE'});
+        showToast('目标已删除');
+        await renderGoalsPage(root);
+    }));
+};
+
+renderDailyGoalDrafts=function(drafts,root){
+    const area=$('#dailyGoalDrafts');
+    if(!drafts.length){area.innerHTML=empty('AI 没有整理出有效今日目标');return}
+    area.innerHTML=`<p class="hint">每一项都可以修改或单独删除，确认后才会保存。</p>${drafts.map((draft,index)=>`<div class="draft daily-draft" data-daily-card="${index}"><div class="draft-toolbar"><span class="badge">${escapeHtml(draft.classification)}</span><button class="danger-button compact" data-daily-delete="${index}">删除这一条</button></div><div class="field"><label>目标标题</label><input data-daily-field="title" maxlength="500" value="${escapeHtml(draft.title)}"></div><div class="field"><label>完成标准</label><textarea data-daily-field="outcome" maxlength="4000">${escapeHtml(draft.expectedOutcome||'')}</textarea></div><div class="field-row"><div class="field"><label>优先级</label><select data-daily-field="priority"><option value="1" ${draft.priority===1?'selected':''}>高</option><option value="2" ${draft.priority===2?'selected':''}>中</option><option value="3" ${draft.priority===3?'selected':''}>低</option></select></div><div class="field"><label>预计分钟</label><input data-daily-field="minutes" type="number" min="1" max="1440" value="${draft.estimatedMinutes||''}"></div></div><div class="field"><label>关联到已有目标</label><div class="relation-options">${dailyGoalParentOptions.length?dailyGoalParentOptions.map(goal=>`<label><input type="checkbox" value="${goal.id}" ${draft.relatedGoalIds?.includes(goal.id)?'checked':''}> <span>${escapeHtml(goal.title)}</span></label>`).join(''):'<span class="soft-label">暂无可关联的上级目标</span>'}</div></div>${draft.reasoning?`<div class="record-body">AI 依据：${escapeHtml(draft.reasoning)}</div>`:''}</div>`).join('')}<div class="button-row"><button id="confirmDailyGoals" class="primary-button">确认并保存 ${drafts.length} 个今日目标</button><button id="cancelDailyGoals" class="secondary-button">全部取消</button></div>`;
+    const updateCount=()=>{
+        const count=area.querySelectorAll('[data-daily-card]').length;
+        const confirmButton=$('#confirmDailyGoals');
+        confirmButton.textContent=count?`确认并保存 ${count} 个今日目标`:'没有可保存的目标';
+        confirmButton.disabled=count===0;
+    };
+    area.querySelectorAll('[data-daily-delete]').forEach(button=>button.addEventListener('click',()=>{
+        area.querySelector(`[data-daily-card="${button.dataset.dailyDelete}"]`).remove();
+        updateCount();
+    }));
+    $('#cancelDailyGoals').addEventListener('click',()=>{area.innerHTML='';showToast('已取消本次 AI 草稿')});
+    $('#confirmDailyGoals').addEventListener('click',async()=>{
+        const cards=[...area.querySelectorAll('[data-daily-card]')];
+        if(!cards.length)return;
+        const payloads=[];
+        for(const card of cards){
+            const index=Number(card.dataset.dailyCard);const draft=drafts[index];
+            const field=name=>card.querySelector(`[data-daily-field="${name}"]`).value.trim();
+            const title=field('title');
+            if(!title)return showToast('每个保留目标都需要标题');
+            payloads.push({horizon:'Today',title,expectedOutcome:field('outcome'),status:'NotStarted',priority:Number(field('priority')),estimatedMinutes:field('minutes')?Number(field('minutes')):null,relatedGoalIds:[...card.querySelectorAll('.relation-options input:checked')].map(input=>input.value)});
+        }
+        const button=$('#confirmDailyGoals');button.disabled=true;button.textContent='正在保存…';
+        try{for(const payload of payloads)await api('/api/goals',{method:'POST',body:JSON.stringify(payload)});showToast('今日目标已保存');await renderGoalsPage(root)}catch(error){button.disabled=false;updateCount();showToast(error.message)}
+    });
+};

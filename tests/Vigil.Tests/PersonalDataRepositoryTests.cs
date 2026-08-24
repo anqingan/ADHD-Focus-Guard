@@ -31,5 +31,21 @@ public sealed class PersonalDataRepositoryTests : IDisposable
         Assert.Single(await repository.GetActionItemsAsync(true)); Assert.Empty(await repository.GetActionItemsAsync(false)); Assert.Equal(MemoryStatus.PendingReview, Assert.Single(await repository.GetMemoriesAsync()).Status);
     }
 
+    [Fact]
+    public async Task DeleteGoal_RemovesGoalAndItsHistory()
+    {
+        var repository = new SqlitePersonalDataRepository(Path.Combine(_directory, "delete-goal.db"));
+        await repository.InitializeAsync();
+        var now = DateTimeOffset.Now;
+        var goal = new GoalRecord { Id = Guid.NewGuid(), Horizon = GoalHorizon.Today, Title = "允许永久删除", Status = GoalStatus.InProgress, CreatedAt = now, UpdatedAt = now };
+        await repository.SaveGoalAsync(goal, "created");
+        Assert.Single(await repository.GetGoalHistoryAsync(goal.Id));
+
+        await repository.DeleteGoalAsync(goal.Id);
+
+        Assert.Empty(await repository.GetGoalsAsync(true));
+        Assert.Empty(await repository.GetGoalHistoryAsync(goal.Id));
+    }
+
     public void Dispose() { try { Directory.Delete(_directory, true); } catch (IOException) { } }
 }

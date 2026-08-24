@@ -146,6 +146,27 @@ public sealed class SqlitePersonalDataRepository : IPersonalDataRepository
         return result;
     }
 
+    public async Task DeleteGoalAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        using (var history = connection.CreateCommand())
+        {
+            history.Transaction = (SqliteTransaction)transaction;
+            history.CommandText = "DELETE FROM goal_history WHERE goal_id=$id;";
+            Add(history, "$id", id);
+            await history.ExecuteNonQueryAsync(cancellationToken);
+        }
+        using (var goal = connection.CreateCommand())
+        {
+            goal.Transaction = (SqliteTransaction)transaction;
+            goal.CommandText = "DELETE FROM goals WHERE id=$id;";
+            Add(goal, "$id", id);
+            await goal.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ActionItemRecord>> GetActionItemsAsync(bool includeInactive = true, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);

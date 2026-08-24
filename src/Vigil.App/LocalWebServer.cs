@@ -208,6 +208,34 @@ public sealed class LocalWebServer : IAsyncDisposable
             }
             return Results.Ok(goal);
         });
+        app.MapDelete("/api/goals/{id:guid}", async (Guid id, CancellationToken cancellationToken) =>
+        {
+            var now = DateTimeOffset.Now;
+            var goals = await _repository.GetGoalsAsync(true, cancellationToken);
+            if (goals.All(goal => goal.Id != id)) return Results.NotFound(new { message = "目标不存在或已被删除。" });
+
+            foreach (var goal in goals.Where(goal => goal.Id != id && goal.RelatedGoalIds.Contains(id)))
+                await _repository.SaveGoalAsync(goal with
+                {
+                    RelatedGoalIds = goal.RelatedGoalIds.Where(relatedId => relatedId != id).ToArray(),
+                    UpdatedAt = now
+                }, "related-goal-deleted", cancellationToken);
+
+            var actions = await _repository.GetActionItemsAsync(true, cancellationToken);
+            foreach (var action in actions.Where(action => action.RelatedGoalIds.Contains(id)))
+                await _repository.SaveActionItemAsync(action with
+                {
+                    RelatedGoalIds = action.RelatedGoalIds.Where(relatedId => relatedId != id).ToArray(),
+                    UpdatedAt = now
+                }, cancellationToken);
+
+            var memories = await _repository.GetMemoriesAsync(true, cancellationToken);
+            foreach (var memory in memories.Where(memory => memory.RelatedGoalId == id))
+                await _repository.SaveMemoryAsync(memory with { RelatedGoalId = null, UpdatedAt = now }, cancellationToken);
+
+            await _repository.DeleteGoalAsync(id, cancellationToken);
+            return Results.Ok(new { ok = true });
+        });
         app.MapGet("/api/actions", async (CancellationToken cancellationToken) =>
             Results.Ok(await _repository.GetActionItemsAsync(true, cancellationToken)));
         app.MapPost("/api/actions/organize", async (TextInput input, CancellationToken cancellationToken) =>
