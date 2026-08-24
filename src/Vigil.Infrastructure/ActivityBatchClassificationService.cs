@@ -47,13 +47,14 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
         if (!await _classificationGate.WaitAsync(0, cancellationToken)) return 0;
         try
         {
-            if (_budget is not null && !await _budget.CanUseAutomaticAiAsync(cancellationToken)) return 0;
-
             var now = DateTimeOffset.Now;
             var segments = await _repository.GetActivitySegmentsAsync(now - _options.Lookback, now, cancellationToken);
+            var updated = await NormalizeCommunicationActivitiesAsync(segments, cancellationToken);
+            if (_budget is not null && !await _budget.CanUseAutomaticAiAsync(cancellationToken)) return updated;
+
             var groups = BuildCandidateGroups(segments, _options.MaximumBatchSize);
-            if (groups.Count == 0) return 0;
-            if (!force && groups.Count < _options.MinimumBatchSize && groups.All(group => now - group.FirstSeen < _options.MaxPendingAge)) return 0;
+            if (groups.Count == 0) return updated;
+            if (!force && groups.Count < _options.MinimumBatchSize && groups.All(group => now - group.FirstSeen < _options.MaxPendingAge)) return updated;
 
             var representatives = groups.Select(group => group.Representative).ToArray();
             var goals = await _repository.GetGoalsAsync(false, cancellationToken);
@@ -66,10 +67,13 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
             if (resultMap.Count != representatives.Length)
                 throw new InvalidDataException($"AI 批量分类结果不完整：请求 {representatives.Length} 项，收到 {resultMap.Count} 项。");
 
-            var updated = 0;
             foreach (var group in groups)
             {
                 if (!resultMap.TryGetValue(group.Representative.Id, out var result)) continue;
+                var category = result.Category == ActivityCategory.Entertainment
+                    && ActivityClassifier.IsNeutralCommunicationActivity(group.Representative.Application, group.Representative.Domain)
+                        ? ActivityCategory.Other
+                        : result.Category;
                 var displayName = string.IsNullOrWhiteSpace(result.DisplayName)
                     ? group.Representative.DisplayName
                     : result.DisplayName;
@@ -77,7 +81,7 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
                 {
                     await _repository.SaveActivitySegmentAsync(segment with
                     {
-                        Category = result.Category,
+                        Category = category,
                         DisplayName = displayName,
                         Confidence = result.Confidence,
                         ClassificationSource = ClassificationSource.Ai
@@ -85,7 +89,7 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
                     updated++;
                 }
 
-                if (result.Category == ActivityCategory.Other || result.Confidence < _options.MinimumRuleConfidence) continue;
+                if (category == ActivityCategory.Other || result.Confidence < _options.MinimumRuleConfidence) continue;
                 await _repository.SaveClassificationRuleAsync(new ClassificationRule
                 {
                     Id = Guid.NewGuid(),
@@ -93,7 +97,7 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
                     Application = group.Representative.Application,
                     Domain = group.Representative.Domain,
                     TitleKeywords = group.Representative.DisplayName,
-                    Category = result.Category,
+                    Category = category,
                     CreatedAt = DateTimeOffset.MinValue,
                     LastMatchedAt = now
                 }, cancellationToken);
@@ -107,6 +111,32 @@ public sealed class ActivityBatchClassificationService : IAsyncDisposable
         {
             _classificationGate.Release();
         }
+    }
+
+    private async Task<int> NormalizeCommunicationActivitiesAsync(
+        IReadOnlyList<ActivitySegment> segments,
+        CancellationToken cancellationToken)
+    {
+        var updated = 0;
+        foreach (var segment in segments.Where(segment =>
+                     segment.Category == ActivityCategory.Entertainment
+                     && ActivityClassifier.IsNeutralCommunicationActivity(segment.Application, segment.Domain)))
+        {
+            await _repository.SaveActivitySegmentAsync(segment with
+            {
+                Category = ActivityCategory.Other,
+                ClassificationSource = ClassificationSource.BuiltInRule,
+                Confidence = .92
+            }, cancellationToken);
+            updated++;
+        }
+
+        var rules = await _repository.GetClassificationRulesAsync(cancellationToken);
+        foreach (var rule in rules.Where(rule =>
+                     rule.Category == ActivityCategory.Entertainment
+                     && ActivityClassifier.IsNeutralCommunicationActivity(rule.Application, rule.Domain)))
+            await _repository.DeleteClassificationRuleAsync(rule.Id, cancellationToken);
+        return updated;
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)

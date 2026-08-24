@@ -17,7 +17,14 @@ public static partial class ActivityClassifier
             .ThenBy(r => r.Scope)
             .ThenByDescending(r => r.CreatedAt)
             .FirstOrDefault();
-        if (match is not null) return (match.Category, 1);
+        if (match is not null)
+        {
+            if (IsNeutralCommunicationActivity(app, domain) && match.Category == ActivityCategory.Entertainment)
+                return (ActivityCategory.Other, 1);
+            return (match.Category, 1);
+        }
+
+        if (IsNeutralCommunicationActivity(app, domain)) return (ActivityCategory.Other, .92);
 
         if (ContainsAny(app, "devenv", "code", "rider", "idea", "pycharm", "word", "excel", "powerpnt", "onenote", "matlab", "texstudio"))
             return (ActivityCategory.WorkAndStudy, .86);
@@ -35,6 +42,16 @@ public static partial class ActivityClassifier
         if (title.Length > 160) title = title[..160];
         if (!string.IsNullOrWhiteSpace(title)) return title;
         return string.IsNullOrWhiteSpace(activity.Application) ? "其它活动" : activity.Application;
+    }
+
+    public static bool IsNeutralCommunicationActivity(string application, string domain = "")
+    {
+        var executable = Path.GetFileNameWithoutExtension(application.Trim()).ToLowerInvariant();
+        if (executable is "wechat" or "weixin" or "qq" or "qqnt" or "tim" or "wxwork" or "wecom") return true;
+        var host = Normalize(domain).Trim('.');
+        return host is "wx.qq.com" or "im.qq.com" or "web.wechat.com" or "web.weixin.qq.com"
+            || host.EndsWith(".wx.qq.com", StringComparison.Ordinal)
+            || host.EndsWith(".web.wechat.com", StringComparison.Ordinal);
     }
 
     private static bool Matches(ClassificationRule rule, string app, string domain, string title)

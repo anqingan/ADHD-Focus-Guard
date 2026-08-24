@@ -97,6 +97,39 @@ public sealed class ActivityBatchClassificationServiceTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task CommunicationEntertainment_IsLocallyCorrectedWithoutCallingAi()
+    {
+        var repository = await CreateRepositoryAsync("communication.db");
+        var now = DateTimeOffset.Now;
+        var segment = Segment(now.AddMinutes(-10), now.AddMinutes(-5), "微信聊天") with
+        {
+            Application = "WeChat.exe",
+            Category = ActivityCategory.Entertainment,
+            ClassificationSource = ClassificationSource.Ai,
+            Confidence = .9
+        };
+        await repository.SaveActivitySegmentAsync(segment);
+        await repository.SaveClassificationRuleAsync(new ClassificationRule
+        {
+            Id = Guid.NewGuid(),
+            Scope = RuleScope.ApplicationOrDomain,
+            Application = "WeChat.exe",
+            Category = ActivityCategory.Entertainment,
+            CreatedAt = DateTimeOffset.MinValue
+        });
+        var ai = new BatchAi(_ => throw new InvalidOperationException("不应调用 AI"));
+        await using var service = new ActivityBatchClassificationService(repository, ai);
+
+        Assert.Equal(1, await service.ClassifyPendingAsync(force: true));
+
+        var saved = Assert.Single(await repository.GetActivitySegmentsAsync(now.AddDays(-1), now));
+        Assert.Equal(ActivityCategory.Other, saved.Category);
+        Assert.Equal(.92, saved.Confidence);
+        Assert.Empty(await repository.GetClassificationRulesAsync());
+        Assert.Empty(ai.Batches);
+    }
+
     private async Task<SqlitePersonalDataRepository> CreateRepositoryAsync(string name)
     {
         var repository = new SqlitePersonalDataRepository(Path.Combine(_directory, name));

@@ -27,4 +27,28 @@ public sealed class ActivityClassifierTests
         var userRule = new ClassificationRule { Id = Guid.NewGuid(), Scope = RuleScope.ApplicationOrDomain, Application = "chrome.exe", Domain = "video.test", Category = ActivityCategory.Entertainment, CreatedAt = DateTimeOffset.Now };
         Assert.Equal(ActivityCategory.Entertainment, ActivityClassifier.ApplyRules(activity, [aiCache, userRule]).Category);
     }
+
+    [Theory]
+    [InlineData("WeChat.exe")]
+    [InlineData("Weixin.exe")]
+    [InlineData("QQ.exe")]
+    [InlineData("QQNT.exe")]
+    [InlineData("TIM.exe")]
+    [InlineData("WXWork.exe")]
+    public void CommunicationApps_AreNeutralByDefault(string application)
+    {
+        var activity = new ActivityWatchSnapshot(DateTimeOffset.Now, false, application, "聊天", "", "聊天");
+        var entertainmentRule = new ClassificationRule { Id = Guid.NewGuid(), Scope = RuleScope.ApplicationOrDomain, Application = application, Category = ActivityCategory.Entertainment, CreatedAt = DateTimeOffset.Now };
+        Assert.Equal(ActivityCategory.Other, ActivityClassifier.ApplyRules(activity, []).Category);
+        Assert.Equal(ActivityCategory.Other, ActivityClassifier.ApplyRules(activity, [entertainmentRule]).Category);
+    }
+
+    [Fact]
+    public void CommunicationApp_CanStillBeMarkedAsWorkAndStudy()
+    {
+        var activity = new ActivityWatchSnapshot(DateTimeOffset.Now, false, "QQ.exe", "课程群", "", "课程群");
+        var workRule = new ClassificationRule { Id = Guid.NewGuid(), Scope = RuleScope.Similar, Application = "QQ.exe", TitleKeywords = "课程群", Category = ActivityCategory.WorkAndStudy, CreatedAt = DateTimeOffset.Now };
+        Assert.Equal(ActivityCategory.WorkAndStudy, ActivityClassifier.ApplyRules(activity, [workRule]).Category);
+        Assert.False(ActivityClassifier.IsNeutralCommunicationActivity("QQBrowser.exe"));
+    }
 }
